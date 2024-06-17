@@ -8,7 +8,7 @@ def unpickle(file):
 
 import os
 def load_batch_file(batch_filename):
-    filepath = os.path.join('C:/Users/hulu0/Downloads/input/cifar-10-batches-py', batch_filename)
+    filepath = os.path.join('./cifar-10-batches-py', batch_filename)
     unpickled = unpickle(filepath)
     return unpickled
 
@@ -29,17 +29,24 @@ train_y = np.concatenate([to_categorical(labels, num_classes) for labels in [tra
 test_x = test_batch['data'].astype('float32') / 255
 test_y = to_categorical(test_batch['labels'], num_classes)
 
+
 from keras.models import Sequential
 from keras.layers import Dense
+
 
 img_rows = img_cols = 32
 channels = 3
 
-simple_model = Sequential()
-simple_model.add(Dense(10_000, input_shape=(img_rows*img_cols*channels,), activation='relu'))
-#simple_model.add(Dense(1_000, activation='relu'))
-#simple_model.add(Dense(100, activation='relu'))
-simple_model.add(Dense(10, activation='softmax'))
+train_x_reshaped = train_x.reshape(len(train_x), img_rows, img_cols, channels)
+test_x_reshaped = test_x.reshape(len(test_x), img_rows, img_cols, channels)
 
-simple_model.compile(optimizer='sgd', loss='categorical_crossentropy', metrics=['accuracy'])
-simple_model_history = simple_model.fit(train_x, train_y, batch_size=100, epochs=8, validation_data=(test_x, test_y))
+from keras.layers import Conv2D, Flatten
+simple_cnn_model = Sequential()
+simple_cnn_model.add(Conv2D(32, (3,3), input_shape=(img_rows,img_cols,channels), activation='relu'))
+simple_cnn_model.add(Conv2D(32, (3,3), activation='relu'))
+simple_cnn_model.add(Conv2D(32, (3,3), activation='relu'))
+simple_cnn_model.add(Flatten())
+simple_cnn_model.add(Dense(10, activation='softmax'))
+
+simple_cnn_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+simple_cnn_model_history = simple_cnn_model.fit(train_x_reshaped, train_y, batch_size=100, epochs=8, validation_data=(test_x_reshaped, test_y))
