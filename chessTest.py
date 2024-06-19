@@ -43,7 +43,7 @@ def fen_to_bitboards(fen):
 
 def fen_eval_stockfish(fen):
     stockfish.set_fen_position(fen)
-    eval = stockfish.get_evaluation(fen)
+    eval = stockfish.get_evaluation()
     return eval.get('value')
 
 def read_fens(input_file, batch_size):
@@ -62,9 +62,11 @@ def process_fens_into_evals(fens):
         evals_bitboard[i] = fen_eval_stockfish(fen)
     return evals_bitboard
 
-for fens in read_fens(input_file='fens.txt', batch_size=1):
-    input_bitboards = process_multiple_fens_to_bit_board(fens)
-    testing_bitboards = process_multiple_fens_to_bit_board(fens)
+fens = read_fens(input_file='fens.txt', batch_size=100)
+input_bitboards = process_multiple_fens_to_bit_board(fens)
+testing_bitboards = process_fens_into_evals(fens)
+print(input_bitboards)
+print(testing_bitboards)
 
 
 
@@ -84,11 +86,11 @@ print(stockfish.get_board_visual())
 print(stockfish.get_best_move())
 print(stockfish.get_evaluation())
 eval = stockfish.get_evaluation()
-y = eval.get("value")
-y = np.array(y)
-y_reshaped = y.reshape(100, 1)
-input_tensor_reshaped = input_tensor.reshape(100, 12, 8, 8)
-print(y)
+#y = eval.get("value")
+#y = np.array(y)
+#y_reshaped = y.reshape(1, 1)
+#input_tensor_reshaped = input_tensor.reshape(100, 12, 8, 8)
+#print(y)
 print(input_tensor.shape)
 
 
