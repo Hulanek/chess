@@ -41,6 +41,7 @@ def fen_to_bitboards(fen):
                 input_tensor[i, rank, file] = 1
     return input_tensor
 
+stockfish = Stockfish("C:/Program Files/stockfish/stockfish-windows-x86-64-avx2.exe")
 def fen_eval_stockfish(fen):
     stockfish.set_fen_position(fen)
     eval = stockfish.get_evaluation()
@@ -62,11 +63,10 @@ def process_fens_into_evals(fens):
         evals_bitboard[i] = fen_eval_stockfish(fen)
     return evals_bitboard
 
-fens = read_fens(input_file='fens.txt', batch_size=100)
+fens = read_fens(input_file='fens.txt', batch_size=1000)
 input_bitboards = process_multiple_fens_to_bit_board(fens)
 testing_bitboards = process_fens_into_evals(fens)
-print(input_bitboards)
-print(testing_bitboards)
+
 
 
 
@@ -80,7 +80,7 @@ fen = "rnbqk1nr/pp2p1bp/3p2p1/2pP1p2/2P5/2N2N2/PP2PPPP/R1BQKB1R w KQkq -"
 input_tensor = fen_to_bitboards(fen)
 print(input_tensor)
 
-stockfish = Stockfish("C:/Program Files/stockfish/stockfish-windows-x86-64-avx2.exe")
+
 stockfish.set_fen_position(fen)
 print(stockfish.get_board_visual())
 print(stockfish.get_best_move())
@@ -103,5 +103,5 @@ evalModel.add(layers.Dense(64, activation='relu'))
 evalModel.add(layers.Dense(1, activation='relu'))
 
 
-evalModel.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-evalModel.fit(input_tensor_reshaped, y_reshaped, batch_size=100, epochs=8)
+evalModel.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+evalModel.fit(input_bitboards, testing_bitboards, batch_size=1000, epochs=8)
