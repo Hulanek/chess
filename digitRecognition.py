@@ -20,8 +20,8 @@ ds_train = ds_train.cache()
 ds_test = ds_test.cache()
 ds_train = ds_train.shuffle(ds_info.splits['train'].num_examples)
 ds_test = ds_test.shuffle(ds_info.splits['test'].num_examples)
-ds_train = ds_train.batch(3000)
-ds_test = ds_test.batch(1000)
+ds_train = ds_train.batch(10000)
+ds_test = ds_test.batch(100)
 ds_train = ds_train.prefetch(tf.data.AUTOTUNE)
 ds_test = ds_test.prefetch(tf.data.AUTOTUNE)
 
@@ -29,8 +29,9 @@ normalization_layer = tf.keras.layers.Rescaling(1./255)
 normalized_ds = ds_train.map(lambda x, y: (normalization_layer(x), y))
 image_batch, labels_batch = next(iter(normalized_ds))
 array = np.array(image_batch)
-X = array.reshape(3000, 784)
+X = array.reshape(10000, 784)
 y = np.array(labels_batch)
+print(y)
 
 
 class Layer:
@@ -125,21 +126,36 @@ class Activation_Softmax_Loss_CategoricalCrossentropy():
         self.dinputs = self.dinputs / samples
 
 
-class Optimizer:
-    def __init__(self, learning_rate):
-        self.learning_rate = learning_rate
-
-    def update_values(self, layer):
-        layer.weights += -self.learning_rate * layer.dweights
-        layer.biases += -self.learning_rate * layer.dbiases
+class Optimizer_SGD:
+    # Initialize optimizer - set settings,
+   # learning rate of 1. is default for this optimizer
+    def __init__(self, learning_rate=1., decay=0.):
+           self.learning_rate = learning_rate
+           self.current_learning_rate = learning_rate
+           self.decay = decay
+           self.iterations = 0
+    # Call once before any parameter updates
+    def pre_update_params(self):
+        if self.decay:
+               self.current_learning_rate = self.learning_rate * \
+                   (1. / (1. + self.decay * self.iterations))
+    # Update parameters
+    def update_params(self, layer):
+           layer.weights += -self.current_learning_rate * layer.dweights
+           layer.biases += -self.current_learning_rate * layer.dbiases
+    # Call once after any parameter updates
+    def post_update_params(self):
+           self.iterations += 1
 
 
 # Init
-dense1 = Layer(784, 64)  # 28x28 pixels
+dense1 = Layer(784, 256)  # 28x28 pixels
 activation1 = Activation_ReLU()
-dense2 = Layer(64, 10)
+dense2 = Layer(256, 256)  # 28x28 pixels
+activation2 = Activation_ReLU()
+dense3 = Layer(256, 10)
 loss_activation = Activation_Softmax_Loss_CategoricalCrossentropy()
-optimizer = Optimizer(1.0)
+optimizer = Optimizer_SGD(decay=1e-2)
 
 
 for epoch in range(150):
@@ -147,7 +163,9 @@ for epoch in range(150):
     dense1.forward(X)
     activation1.forward(dense1.output)
     dense2.forward(activation1.output)
-    loss = loss_activation.forward(dense2.output, y)
+    activation2.forward(dense2.output)
+    dense3.forward(activation2.output)
+    loss = loss_activation.forward(dense3.output, y)
     predictions = np.argmax(loss_activation.output, axis=1)
     if len(y.shape) == 2:
         y = np.argmax(y, axis=1)
@@ -160,32 +178,40 @@ for epoch in range(150):
 
     # Backward
     loss_activation.backward(loss_activation.output, y)
-    dense2.backward(loss_activation.dinputs)
+    dense3.backward(loss_activation.dinputs)
+    activation2.backward(dense3.dinputs)
+    dense2.backward(activation2.dinputs)
     activation1.backward(dense2.dinputs)
     dense1.backward(activation1.dinputs)
 
     # Update of weights and biases
-    optimizer.update_values(dense1)
-    optimizer.update_values(dense2)
+    optimizer.pre_update_params()
+    optimizer.update_params(dense1)
+    optimizer.update_params(dense2)
+    optimizer.update_params(dense3)
+    optimizer.post_update_params()
 
 
 normalized_ds = ds_test.map(lambda x, y: (normalization_layer(x), y))
 image_batch, labels_batch = next(iter(normalized_ds))
 array = np.array(image_batch)
-X = array.reshape(1000, 784)
+X = array.reshape(100, 784)
 y = np.array(labels_batch)
 dense1.forward(X)
 activation1.forward(dense1.output)
 dense2.forward(activation1.output)
-loss = loss_activation.forward(dense2.output, y)
+activation2.forward(dense2.output)
+dense3.forward(activation2.output)
+loss = loss_activation.forward(dense3.output, y)
 predictions = np.argmax(loss_activation.output, axis=1)
 print(y)
 print(predictions)
+print(loss_activation.output)
 
-
+'''
 for number in range(10):
-    strNumber = str(number)
-    img = Image.open('another_{}.png'.format(strNumber))
+    strNumber = number
+    img = Image.open('ownDigit_{}.png'.format(strNumber))
     rgbArray = np.array(img, dtype=np.float32)
     rgbArray = rgbArray.reshape(784, 3)
     myArray = np.zeros(784, float)
@@ -197,6 +223,9 @@ for number in range(10):
     dense1.forward(myArray)
     activation1.forward(dense1.output)
     dense2.forward(activation1.output)
-    loss = loss_activation.forward(dense2.output, y)
+    activation2.forward(dense2.output)
+    dense3.forward(activation2.output)
+    loss = loss_activation.forward(dense3.output, y)
     predictions = np.argmax(loss_activation.output, axis=1)
-    print(strNumber, predictions)
+    print(strNumber, predictions, "    ", loss_activation.output)
+'''

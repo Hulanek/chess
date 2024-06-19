@@ -44,7 +44,7 @@ def fen_to_bitboards(fen):
 def fileToFens(size):
 
     fens = np.zeros((size, size))
-    fens = #open file read size lines
+    #open file read size lines
     return fens
 
 
