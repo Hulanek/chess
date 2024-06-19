@@ -41,14 +41,39 @@ def fen_to_bitboards(fen):
                 input_tensor[i, rank, file] = 1
     return input_tensor
 
-def fileToFens(size):
+def fen_eval_stockfish(fen):
+    stockfish.set_fen_position(fen)
+    eval = stockfish.get_evaluation(fen)
+    return eval.get('value')
 
-    fens = np.zeros((size, size))
-    fens = #open file read size lines
+def read_fens(input_file, batch_size):
+    with open(input_file, 'r') as file:
+        fens = [next(file).strip() for _ in range(batch_size)]
     return fens
+def process_multiple_fens_to_bit_board(fens):
+    bitboards = np.zeros((len(fens), 12, 8, 8), dtype=np.float32)
+    for i, fen in enumerate(fens):
+        bitboards[i] = fen_to_bitboards(fen)
+    return bitboards
+
+def process_fens_into_evals(fens):
+    evals_bitboard = np.zeros((len(fens), 1), dtype=np.float32)
+    for i, fen in enumerate(fens):
+        evals_bitboard[i] = fen_eval_stockfish(fen)
+    return evals_bitboard
+
+for fens in read_fens(input_file='fens.txt', batch_size=1):
+    input_bitboards = process_multiple_fens_to_bit_board(fens)
+    testing_bitboards = process_multiple_fens_to_bit_board(fens)
+
+
+
+
+
 
 
 fen = "rnbqk1nr/pp2p1bp/3p2p1/2pP1p2/2P5/2N2N2/PP2PPPP/R1BQKB1R w KQkq -"
+
 
 input_tensor = fen_to_bitboards(fen)
 print(input_tensor)
