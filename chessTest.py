@@ -5,6 +5,9 @@ from keras import layers
 import numpy as np
 from stockfish import Stockfish
 import math
+from sklearn.model_selection import train_test_split
+from keras.callbacks import EarlyStopping
+import random
 
 def fen_to_bitboards(fen):
     # Definice mapování figur na indexy bitboardů
@@ -42,10 +45,11 @@ def fen_to_bitboards(fen):
     return input_tensor
 
 stockfish = Stockfish("C:/Program Files/stockfish/stockfish-windows-x86-64-avx2.exe")
+
 def fen_eval_stockfish(fen):
     stockfish.set_fen_position(fen)
     eval = stockfish.get_evaluation()
-    return eval.get('value')
+    return eval.get('value')/1000
 
 def read_fens(input_file, batch_size):
     with open(input_file, 'r') as file:
@@ -63,45 +67,49 @@ def process_fens_into_evals(fens):
         evals_bitboard[i] = fen_eval_stockfish(fen)
     return evals_bitboard
 
-fens = read_fens(input_file='fens.txt', batch_size=1000)
+fens = read_fens(input_file='fens.txt', batch_size=100)
 input_bitboards = process_multiple_fens_to_bit_board(fens)
 testing_bitboards = process_fens_into_evals(fens)
 
+nn_test_fens = read_fens(input_file='fens_test.txt', batch_size=100)
+nn_test_fens_bitboard = process_multiple_fens_to_bit_board(nn_test_fens)
+test_fens_eval_bitboards = process_fens_into_evals(nn_test_fens)
 
 
-
-
-
-
-
-fen = "rnbqk1nr/pp2p1bp/3p2p1/2pP1p2/2P5/2N2N2/PP2PPPP/R1BQKB1R w KQkq -"
-
-
-input_tensor = fen_to_bitboards(fen)
-print(input_tensor)
-
-
-stockfish.set_fen_position(fen)
-print(stockfish.get_board_visual())
-print(stockfish.get_best_move())
-print(stockfish.get_evaluation())
-eval = stockfish.get_evaluation()
-#y = eval.get("value")
-#y = np.array(y)
-#y_reshaped = y.reshape(1, 1)
-#input_tensor_reshaped = input_tensor.reshape(100, 12, 8, 8)
-#print(y)
-print(input_tensor.shape)
+#input_bitboards_train, input_bitboards_val, testing_bitboards_train, testing_bitboards_val = train_test_split(input_bitboards, testing_bitboards, test_size=0.2, random_state=42)
 
 
 evalModel = Sequential()
-evalModel.add(layers.Conv2D(32, (3,3), input_shape=(12,8,8), activation='relu'))
-evalModel.add(layers.Conv2D(32, (3,3), activation='relu'))
-evalModel.add(layers.Conv2D(32, (3,3), activation='relu'))
+evalModel.add(layers.Conv2D(32, (3, 3), input_shape=(12, 8, 8), activation='relu'))
+evalModel.add(layers.Conv2D(32, (3, 3), activation='relu'))
+#evalModel.add(layers.Dropout(0.25))
+#evalModel.add(layers.Conv2D(32, (3, 3), activation='relu'))
+#evalModel.add(layers.Dropout(0.25))
 evalModel.add(layers.Flatten())
-evalModel.add(layers.Dense(64, activation='relu'))
-evalModel.add(layers.Dense(1, activation='relu'))
+evalModel.add(layers.Dense(768, activation='relu'))
+evalModel.add(layers.Dense(128, activation='relu'))
+evalModel.add(layers.Dropout(0.5))
+evalModel.add(layers.Dense(1, activation='tanh'))
 
+evalModel.compile(optimizer='adam', loss='mean_squared_error', metrics=['mse', 'mae'])
+#early_stopping = EarlyStopping(monitor='val_loss', patience=3)
+simple_model_history = evalModel.fit(input_bitboards, testing_bitboards, batch_size=10, epochs=20, validation_data=(input_bitboards, testing_bitboards))
 
-evalModel.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-evalModel.fit(input_bitboards, testing_bitboards, batch_size=1000, epochs=8)
+predictions = evalModel.predict(nn_test_fens_bitboard)
+approx = 0
+approx_random = 0
+for i in range(100):
+    approx += abs(test_fens_eval_bitboards[i] - predictions[i])
+    approx_random += abs(test_fens_eval_bitboards[i] - random.randint(-1000,1000)/1000)
+    print(f'Expected value:{test_fens_eval_bitboards[i]}, predicted values:  {predictions[i]}')
+
+approx = approx/100
+print(approx)
+approx_random = approx_random/100
+print(approx_random)
+
+approx = approx*1000
+print(approx)
+approx_random = approx_random*1000
+print(approx_random)
+
