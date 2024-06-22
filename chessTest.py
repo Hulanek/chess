@@ -84,14 +84,16 @@ def fen_eval_stockfish(fen):
 
 def read_database(input_file, batch_size):
     fens = []
-    evals = []
+    evals = np.zeros((batch_size,1))
     numOfLines = 0
     with open(input_file, 'r') as file:
         while numOfLines < batch_size * 2:
             line = file.readline()
             numOfLines += 1
             if(numOfLines % 2 == 0):
-                evals.append(line)
+                currEval = float(line)
+                index = numOfLines // 2
+                evals[index - 1] = currEval
             else:
                 fens.append(line)
     return fens, evals
@@ -110,15 +112,11 @@ def process_fens_into_evals(fens):
     return evals_bitboard
 
 
-fens, evals = read_database("fen_extractor_output.txt", 100)
+fens, evals = read_database("fen_extractor_output.txt", 50000)
 input_bitboards = process_multiple_fens_to_bit_board(fens)
 
-test_fens, test_evals = read_database("fen_extractor_output.txt", 100)
-nn_test_fens_bitboard = process_multiple_fens_to_bit_board(test_fens)
-#test_fens_eval_bitboards = process_fens_into_evals(nn_test_fens)
-
-
-#input_bitboards_train, input_bitboards_val, testing_bitboards_train, testing_bitboards_val = train_test_split(input_bitboards, testing_bitboards, test_size=0.2, random_state=42)
+test_fens, test_evals = read_database("fen_extractor_output.txt", 50000)
+test_input_bitboards = process_multiple_fens_to_bit_board(test_fens)
 
 
 evalModel = Sequential()
@@ -135,11 +133,11 @@ evalModel.add(layers.Dense(1, activation='tanh'))
 
 evalModel.compile(optimizer='adam', loss='mean_squared_error', metrics=['mse', 'mae'])
 #early_stopping = EarlyStopping(monitor='val_loss', patience=3)
-simple_model_history = evalModel.fit(input_bitboards, test_evals, batch_size=10, epochs=20)#, validation_data=(nn_test_fens_bitboard, evals))
+simple_model_history = evalModel.fit(input_bitboards, evals, batch_size=100, epochs=20, validation_data=(test_input_bitboards, test_evals))
 
 evalModel.save('firstModel.keras')
 
-predictions = evalModel.predict(nn_test_fens_bitboard)
+predictions = evalModel.predict(test_input_bitboards)
 approx = 0
 approx_random = 0
 for i in range(100):
