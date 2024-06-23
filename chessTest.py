@@ -82,11 +82,19 @@ def fen_eval_stockfish(fen):
     eval = stockfish.get_evaluation()
     return eval.get('value')/1000
 
-def read_database(input_file, batch_size):
+def read_database(input_file, batch_size, offset):
     fens = []
     evals = np.zeros((batch_size,1))
     numOfLines = 0
     with open(input_file, 'r') as file:
+
+        #offset for test data
+        linesToSkip = 0
+        while linesToSkip < offset:
+            line = file.readline()
+            linesToSkip += 1
+        #-----
+
         while numOfLines < batch_size * 2:
             line = file.readline()
             numOfLines += 1
@@ -112,10 +120,10 @@ def process_fens_into_evals(fens):
     return evals_bitboard
 
 
-fens, evals = read_database("fen_extractor_output.txt", 50000)
+fens, evals = read_database("fen_extractor_output.txt", 50000, 0)
 input_bitboards = process_multiple_fens_to_bit_board(fens)
 
-test_fens, test_evals = read_database("fen_extractor_output.txt", 50000)
+test_fens, test_evals = read_database("fen_extractor_output.txt", 50000, 100000)# offset has to be even number
 test_input_bitboards = process_multiple_fens_to_bit_board(test_fens)
 
 
@@ -135,24 +143,21 @@ evalModel.compile(optimizer='adam', loss='mean_squared_error', metrics=['mse', '
 #early_stopping = EarlyStopping(monitor='val_loss', patience=3)
 simple_model_history = evalModel.fit(input_bitboards, evals, batch_size=100, epochs=20, validation_data=(test_input_bitboards, test_evals))
 
-evalModel.save('firstModel.keras')
+#evalModel.save('firstModel.keras')
 
 predictions = evalModel.predict(test_input_bitboards)
 approx = 0
 approx_random = 0
-for i in range(100):
+averageEval = 0
+for i in range(1000):
     approx += abs(test_evals[i] - predictions[i])
-    approx_random += abs(test_evals[i] - random.randint(-1000,1000)/1000)
+    averageEval += test_evals[i]
+    approx_random += abs(test_evals[i] - 0)
     print(f'Expected value:{test_evals[i]}, predicted values:  {predictions[i]}')
 
-
-
-approx = approx/100
+# approx = approx / 1000 (divide by number of examples) * 1000 (multiply to compensate previous divide)
+averageEval = averageEval / 1000
 print(approx)
-approx_random = approx_random/100
+approx_random = approx_random
 print(approx_random)
-
-approx = approx*1000
-print(approx)
-approx_random = approx_random*1000
-print(approx_random)
+print(averageEval)
