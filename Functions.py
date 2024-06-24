@@ -78,6 +78,22 @@ def fen_to_bitboards(fen):
         input_tensor[14, i] = castlingArray
     return input_tensor
 
+def read_database(input_file, batch_size):
+    fens = []
+    evals = np.zeros((batch_size,1))
+    numOfLines = 0
+    with open(input_file, 'r') as file:
+        while numOfLines < batch_size * 2:
+            line = file.readline()
+            numOfLines += 1
+            if(numOfLines % 2 == 0):
+                currEval = float(line)
+                index = numOfLines // 2
+                evals[index - 1] = currEval
+            else:
+                fens.append(line)
+    return fens, evals
+
 def fen_eval_stockfish(fen):
     stockfish.set_fen_position(fen)
     eval = stockfish.get_evaluation()
