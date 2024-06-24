@@ -26,6 +26,13 @@ def averageMiss(model, databaseFile, numOfSamples):
     print("Average model miss - ", modelEvalAvgMiss, "Average random guess miss - ", guessEvalAvgMiss)
 
 
-model = keras.saving.load_model('firstModel.keras')
-averageMiss(model, "fens_evals_first_half.txt", 1000)
-averageMiss(model, "fens_evals_second_half.txt", 1000)
+model1 = keras.saving.load_model('firstModel.keras')
+
+averageMiss(model1, "fens_evals_first_half.txt", 10000)
+averageMiss(model1, "fens_evals_second_half.txt", 10000)
+
+
+model2 = keras.saving.load_model('ULTIAMTEMODEL3000.keras')
+
+averageMiss(model2, "fens_evals_first_half.txt", 10000)
+averageMiss(model2, "fens_evals_second_half.txt", 10000)
