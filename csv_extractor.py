@@ -16,10 +16,10 @@ with open('chessData.csv') as csvfile:
             if '#' in a[1]:
                 b = a[1]
                 if '+' in b:
-                    c = 8000
+                    c = 16000
                     exfile.write(f'{c}\n')
                 elif '-' in b:
-                    c = -8000
+                    c = -16000
                     exfile.write(f'{c}\n')
             else:
                 d = float(a[1])
