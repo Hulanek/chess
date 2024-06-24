@@ -15,15 +15,10 @@ with open('chessData.csv') as csvfile:
             exfile.write(a[0] + '\n')
             if '#' in a[1]:
                 b = a[1]
-                c = float(b[1::])
-                if c > tempval_positive:
-                    tempval_positive = c
-                if c < tempval_negative:
-                    tempval_negative = c
-                if c >= 1:
+                if '+' in b:
                     c = 8000
                     exfile.write(f'{c}\n')
-                elif c <= -1:
+                elif '-' in b:
                     c = -8000
                     exfile.write(f'{c}\n')
             else:
