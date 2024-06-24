@@ -82,10 +82,31 @@ def fen_eval_stockfish(fen):
     eval = stockfish.get_evaluation()
     return eval.get('value')/1000
 
-def read_fens(input_file, batch_size):
+def read_database(input_file, batch_size, offset):
+    fens = []
+    evals = np.zeros((batch_size,1))
+    numOfLines = 0
     with open(input_file, 'r') as file:
-        fens = [next(file).strip() for _ in range(batch_size)]
-    return fens
+
+        #offset for test data
+        linesToSkip = 0
+        while linesToSkip < offset:
+            line = file.readline()
+            linesToSkip += 1
+        #-----
+
+        while numOfLines < batch_size * 2:
+            line = file.readline()
+            numOfLines += 1
+            if(numOfLines % 2 == 0):
+                currEval = float(line)
+                index = numOfLines // 2
+                evals[index - 1] = currEval
+            else:
+                fens.append(line)
+    return fens, evals
+
+
 def process_multiple_fens_to_bit_board(fens):
     bitboards = np.zeros((len(fens), 15, 8, 8), dtype=np.float32)
     for i, fen in enumerate(fens):
@@ -98,22 +119,18 @@ def process_fens_into_evals(fens):
         evals_bitboard[i] = fen_eval_stockfish(fen)
     return evals_bitboard
 
-fens = read_fens(input_file='fens.txt', batch_size=100)
+
+fens, evals = read_database("fen_extractor_output.txt", 50000, 0)
 input_bitboards = process_multiple_fens_to_bit_board(fens)
-testing_bitboards = process_fens_into_evals(fens)
 
-nn_test_fens = read_fens(input_file='fens_test.txt', batch_size=100)
-nn_test_fens_bitboard = process_multiple_fens_to_bit_board(nn_test_fens)
-test_fens_eval_bitboards = process_fens_into_evals(nn_test_fens)
-
-
-#input_bitboards_train, input_bitboards_val, testing_bitboards_train, testing_bitboards_val = train_test_split(input_bitboards, testing_bitboards, test_size=0.2, random_state=42)
+test_fens, test_evals = read_database("fen_extractor_output.txt", 50000, 100000)# offset has to be even number
+test_input_bitboards = process_multiple_fens_to_bit_board(test_fens)
 
 
 evalModel = Sequential()
 evalModel.add(layers.Conv2D(32, (3, 3), input_shape=(15, 8, 8), activation='relu'))
 evalModel.add(layers.Conv2D(32, (3, 3), activation='relu'))
-#evalModel.add(layers.Dropout(0.25))
+#evalModel.add(layers.Dropout(0.25))_
 #evalModel.add(layers.Conv2D(32, (3, 3), activation='relu'))
 #evalModel.add(layers.Dropout(0.25))
 evalModel.add(layers.Flatten())
@@ -124,22 +141,23 @@ evalModel.add(layers.Dense(1, activation='tanh'))
 
 evalModel.compile(optimizer='adam', loss='mean_squared_error', metrics=['mse', 'mae'])
 #early_stopping = EarlyStopping(monitor='val_loss', patience=3)
-simple_model_history = evalModel.fit(input_bitboards, testing_bitboards, batch_size=10, epochs=20, validation_data=(input_bitboards, testing_bitboards))
+simple_model_history = evalModel.fit(input_bitboards, evals, batch_size=100, epochs=20, validation_data=(test_input_bitboards, test_evals))
 
-predictions = evalModel.predict(nn_test_fens_bitboard)
+#evalModel.save('firstModel.keras')
+
+predictions = evalModel.predict(test_input_bitboards)
 approx = 0
 approx_random = 0
-for i in range(100):
-    approx += abs(test_fens_eval_bitboards[i] - predictions[i])
-    approx_random += abs(test_fens_eval_bitboards[i] - random.randint(-1000,1000)/1000)
-    print(f'Expected value:{test_fens_eval_bitboards[i]}, predicted values:  {predictions[i]}')
+averageEval = 0
+for i in range(1000):
+    approx += abs(test_evals[i] - predictions[i])
+    averageEval += test_evals[i]
+    approx_random += abs(test_evals[i] - 0)
+    print(f'Expected value:{test_evals[i]}, predicted values:  {predictions[i]}')
 
-approx = approx/100
+# approx = approx / 1000 (divide by number of examples) * 1000 (multiply to compensate previous divide)
+averageEval = averageEval / 1000
 print(approx)
-approx_random = approx_random/100
+approx_random = approx_random
 print(approx_random)
-
-approx = approx*1000
-print(approx)
-approx_random = approx_random*1000
-print(approx_random)
+print(averageEval)
