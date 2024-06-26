@@ -3,14 +3,16 @@ import numpy as np
 
 import Functions
 
+searchDepth = 3
+bestMove = list()
+bestEvals = list()
+branch = 0
 
 def eval(fen):
 
     return Functions.fen_eval_stockfish(fen)
 
-
 def alphaBeta(board, depth, alpha, beta, maximize):
-
     if board.is_checkmate():
         if board.turn == chess.WHITE:
             return -10000
@@ -26,9 +28,9 @@ def alphaBeta(board, depth, alpha, beta, maximize):
             newEval = alphaBeta(board, depth - 1, alpha, beta, (not maximize))
             if bestVal < newEval:
                 bestVal = newEval
-                bestLayerMove = move
-                print("new best move found for White", depth, bestLayerMove, bestVal)
-            #print("depth", depth, "move", move, "bestVal", bestVal)
+                if depth == searchDepth:
+                    bestMove.append(move)
+                    bestEvals.append(bestVal)
             board.pop()
             alpha = max(alpha, bestVal)
             if alpha >= beta:
@@ -41,8 +43,9 @@ def alphaBeta(board, depth, alpha, beta, maximize):
             newEval = alphaBeta(board, depth - 1, alpha, beta, (not maximize))
             if bestVal > newEval:
                 bestVal = newEval
-                bestLayerMove = move
-                print("new best move found for Black", depth, bestLayerMove, bestVal)
+                if depth == searchDepth:
+                    bestMove.append(move)
+                    bestEvals.append(bestVal)
             board.pop()
             beta = min(beta, bestVal)
             if beta <= alpha:
@@ -50,11 +53,13 @@ def alphaBeta(board, depth, alpha, beta, maximize):
         return bestVal
 
 
-boardTest = chess.Board("8/8/5ppp/8/1k3PPP/8/8/1K6 w - - 2 2")
-print("pici fen", boardTest.board_fen())
-print(eval(boardTest.fen()))
-print(eval("8/8/5ppp/8/1k3PPP/8/8/1K6 w - - 2 2"))
+board = chess.Board("8/5pk1/6p1/8/7p/8/5KPP/8 w - - 3 3")
+for i in range(5):
+    print('-----' + str(i) + '-----')
+    alphaBeta(board, searchDepth, -9999, 9999, board.turn)
+    print(bestMove)
+    print(bestEvals)
+    board.push(bestMove[-1])
+    bestMove.clear()
+    bestEvals.clear()
 
-
-board = chess.Board("8/8/5ppp/8/1k3PPP/8/8/1K6 w - - 2 2")
-alphaBeta(board, 3, -9999, 9999, True)
