@@ -1,3 +1,5 @@
+import random
+
 import chess
 import numpy as np
 import Functions
@@ -7,18 +9,10 @@ model = keras.saving.load_model('firstModel.keras')
 
 
 def eval(fen):
-    bitboard = Functions.fen_to_bitboards(fen)
-    bitboard = bitboard.reshape(1, 15, 8, 8)
-    return model.predict(bitboard, verbose=0)
-
-
-def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
-    fen = board.fen()
-
-    #if fen in transposition_table:
-        #if transposition_table[fen]['depth'] >= depth:
-            #return transposition_table[fen]['value'], move_sequence
-
+    #bitboard = Functions.fen_to_bitboards(fen)
+    #bitboard = bitboard.reshape(1, 15, 8, 8)
+    #return model.predict(bitboard, verbose=0)
+    return random.randint(-1000, 1000)
 
 def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
     if board.is_checkmate():
@@ -60,36 +54,29 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
                 return bestVal, bestSequence
         return bestVal, bestSequence
 
-#board = chess.Board("8/5pk1/6p1/8/7p/8/5KPP/8 w - - 3 3")
-#for i in range(5):
- #   print('-----' + str(i) + '-----')
-  #  alphaBeta(board, searchDepth, -9999, 9999, board.turn, [])
-   # print(bestMove)
-    #print(bestEvals)
-    #board.push(bestMove[-1])
-    #bestMove.clear()
-    #bestEvals.clear()
-
-
-#board = chess.Board("3rrbk1/1p3ppp/1qp1p3/p2nN3/3PR2P/PPQ5/1BP2PP1/4R1K1 w - - 3 23")
-
-
-#transposition_table = {}
-#bestVal, bestSequence = alphaBeta(board, 3, -99999, 99999, (board.turn == chess.WHITE), [])
-
-#print(bestSequence)
-#for move in bestSequence:
- #   print(move)
+# game settings
+game = chess.pgn.Game()
+game.headers["White"] = "White player name"
+game.headers["Black"] = "Black player name"
+game.headers["Event"] = "Ultra prestige turnament at Zlín and Prague"
 
 board = chess.Board()
-while not board.is_checkmate():
-    if board.is_checkmate() or board.is_stalemate():
-        if board.turn == chess.WHITE:
-            print('WHITE LOST')
-        else:
-            print('BLACK LOST')
-    else :
-        bestVal, bestSequence = alphaBeta(board, 3, -99999, 99999, board.turn, [])
-        board.push(bestSequence[0])
-        print(f"{bestSequence[0]}I JUST MADE THE BEST FUCKING MOVE EVER!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+
+node = game
+
+for i in range(100):
+#while not board.is_game_over():
+    bestVal, bestSequence = alphaBeta(board, 3, -99999, 99999, board.turn, [])
+    board.push(bestSequence[0])
+    node = node.add_variation(bestSequence[0])
+    print(f"{bestSequence[0]}")
+
+game.headers["Result"] = board.result()
+print(game)
+
+
+
+
+
+
 
