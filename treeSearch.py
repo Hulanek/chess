@@ -6,26 +6,35 @@ import keras
 from chess import pgn
 import time
 import tensorflow as tf
+from onnxruntime import InferenceSession
+import tensorflow as tf
+import Functions
+import time
+import keras
+#model = keras.models.load_model('firstModel.keras')
 
-model = keras.models.load_model('firstModel.keras')
+sess = InferenceSession('onnx_model.onnx')
+
+
 
 def randomPlay(board):
     legals = list(board.legal_moves)
     return legals[random.randint(0, len(legals)-1)]
 
 def eval(fen):
-    bitboards = Functions.fen_to_bitboards(fen)
-    bitboards = bitboards.reshape(1, 15, 8, 8)
-    #start = time.time()
-    #predict = model(bitboards)
-    #end = time.time()
-    #print("model(x)", end - start, predict)
-    #start = time.time()
-    predict = model.predict_on_batch(bitboards)
-    #end = time.time()
-    #print("batch_predict", end - start, predict)
-    return predict
-    #return random.randint(-1000, 1000)
+    #bitboards = Functions.fen_to_bitboards(fen)
+    #bitboards = bitboards.reshape(1, 15, 8, 8)
+    #fen = [fen]
+    bitboards = Functions.process_multiple_fens_to_bit_board(fen)
+    start = time.time()
+    nn_eval = sess.run(None, {'input': bitboards})
+    end = time.time()
+    print(end-start)
+
+
+    #outputs = serving_model.call_inference(bitboards)
+    #print('caukokokokauko')
+    return random.randint(-1000, 1000)
 
 def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
     if board.is_checkmate():
@@ -68,8 +77,6 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
         return bestVal, bestSequence
 
 
-weights = model.layers[0].get_weights()
-
 # game settings
 game = chess.pgn.Game()
 game.headers["White"] = "White player name"
@@ -81,7 +88,8 @@ board = chess.Board()
 node = game
 
 
-while not board.is_game_over():
+#while not board.is_game_over():
+for i in range(15):
     if board.turn == chess.WHITE:
         move = randomPlay(board)
         board.push(move)
