@@ -21,20 +21,23 @@ def randomPlay(board):
     legals = list(board.legal_moves)
     return legals[random.randint(0, len(legals)-1)]
 
-def eval(fen):
+def evaluateKurva(fen):
     #bitboards = Functions.fen_to_bitboards(fen)
     #bitboards = bitboards.reshape(1, 15, 8, 8)
-    #fen = [fen]
+    start = time.time()
+    fen = [fen]
     bitboards = Functions.process_multiple_fens_to_bit_board(fen)
+    end = time.time()
+    print("bitboards dur:", end-start)
     start = time.time()
     nn_eval = sess.run(None, {'input': bitboards})
     end = time.time()
-    print(end-start)
+    print("eval dur:", end-start)
 
 
     #outputs = serving_model.call_inference(bitboards)
     #print('caukokokokauko')
-    return random.randint(-1000, 1000)
+    return nn_eval[0]
 
 def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
     if board.is_checkmate():
@@ -43,7 +46,7 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
         else:
             return 10000, move_sequence
     if depth == 0:
-        return eval(board.fen()), move_sequence
+        return evaluateKurva(board.fen()), move_sequence
 
     if maximize:
         bestVal = -9999
@@ -88,8 +91,8 @@ board = chess.Board()
 node = game
 
 
-#while not board.is_game_over():
-for i in range(15):
+while not board.is_game_over():
+#for i in range(15):
     if board.turn == chess.WHITE:
         move = randomPlay(board)
         board.push(move)
