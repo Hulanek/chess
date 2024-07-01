@@ -15,15 +15,16 @@ sess = InferenceSession('onnx_model.onnx')
 fen = ["r1bqk1nr/ppp1n1bp/3p2p1/3Pp3/8/4P3/PPP1BPP1/RNBQK1NR w KQkq - 1 8"]
 
 
-bitboard = Functions.process_multiple_fens_to_bit_board(fen)
-
+fens, evals = Functions.read_database("fens_evals_first_half.txt", 100000)
+bitboards = Functions.process_multiple_fens_to_bit_board(fens)
+bitboards = bitboards.reshape(100000, 1, 15, 8, 8)
 #model = keras.models.load_model('firstModel.keras')
 
 start = time.time()
 print("Durations using onnx on small batch")
 for i in range(100000):
 
-    nn_eval = sess.run(None, {'input': bitboard})
+    nn_eval = sess.run(None, {'input': bitboards[i]})
 end = time.time()
 print(end - start)
 
