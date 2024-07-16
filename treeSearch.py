@@ -1,43 +1,26 @@
 import random
 import chess
 import numpy as np
-import Functions
 import keras
 from chess import pgn
 import time
 import tensorflow as tf
 from onnxruntime import InferenceSession
-import tensorflow as tf
 import Functions
-import time
-import keras
 #model = keras.models.load_model('firstModel.keras')
 
-sess = InferenceSession('onnx_model.onnx')
-
-
-
+sess = InferenceSession('new_bitboards_model.onnx')
+num_of_nodes = 0
 def randomPlay(board):
     legals = list(board.legal_moves)
     return legals[random.randint(0, len(legals)-1)]
 
-def evaluateKurva(fen):
-    #bitboards = Functions.fen_to_bitboards(fen)
-    #bitboards = bitboards.reshape(1, 15, 8, 8)
-    start = time.time()
-    fen = [fen]
-    bitboards = Functions.process_multiple_fens_to_bit_board(fen)
-    end = time.time()
-    print("bitboards dur:", end-start)
-    start = time.time()
-    nn_eval = sess.run(None, {'input': bitboards})
-    end = time.time()
-    print("eval dur:", end-start)
-
-
-    #outputs = serving_model.call_inference(bitboards)
-    #print('caukokokokauko')
-    return nn_eval[0]
+def eval(board):
+    global num_of_nodes
+    num_of_nodes = num_of_nodes + 1
+    bitboards = Functions.boardToBitboard(board)
+    bitboards = bitboards.reshape(1, 15, 8, 8)
+    return sess.run(None, {'input': bitboards})[0]
 
 def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
     if board.is_checkmate():
@@ -46,7 +29,7 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
         else:
             return 10000, move_sequence
     if depth == 0:
-        return evaluateKurva(board.fen()), move_sequence
+        return eval(board), move_sequence
 
     if maximize:
         bestVal = -9999
@@ -92,17 +75,20 @@ node = game
 
 
 while not board.is_game_over():
-#for i in range(15):
+#for i in range(10):
     if board.turn == chess.WHITE:
         move = randomPlay(board)
         board.push(move)
         node = node.add_variation(move)
         print(f"{move}")
     else:
-        bestVal, bestSequence = alphaBeta(board, 3, -99999, 99999, board.turn, [])
+        num_of_nodes = 0
+        start = time.time()
+        bestVal, bestSequence = alphaBeta(board, 6, -99999, 99999, board.turn, [])
         board.push(bestSequence[0])
         node = node.add_variation(bestSequence[0])
-        print(f"{bestSequence[0]}")
+        end = time.time()
+        print(f"{bestSequence[0]}", "num of checked nodes - ", num_of_nodes, "time of tree search - ", end - start)
 
 game.headers["Result"] = board.result()
 print(game)
