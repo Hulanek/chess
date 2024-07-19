@@ -22,35 +22,46 @@ def float_to_binary_array(num):
     bit_array = bit_array.reshape(8, 8)
     return bit_array
 
+def bitboards_to_array(bb: np.ndarray) -> np.ndarray:
+    bb = np.asarray(bb, dtype=np.uint64)[:, np.newaxis]
+    s = 8 * np.arange(7, -1, -1, dtype=np.uint64)
+    b = (bb >> s).astype(np.uint8)
+    b = np.unpackbits(b, bitorder="little")
+    return b.reshape(-1, 8, 8).astype(np.float32) # asi to jde pretypovat lip
+
 def boardToBitboard(board):
-    bitboards = np.zeros((15, 8, 8)).astype(np.float32)
+    black, white = board.occupied_co
 
-    # order of figures
-    #  White - PAWN, ROOK, KNIGHT, BISHOP, QUEEN, KING
-    bitboards[0] = float_to_binary_array(board.pieces(chess.PAWN, chess.WHITE))
-    bitboards[1] = float_to_binary_array(board.pieces(chess.ROOK, chess.WHITE))
-    bitboards[2] = float_to_binary_array(board.pieces(chess.KNIGHT, chess.WHITE))
-    bitboards[3] = float_to_binary_array(board.pieces(chess.BISHOP, chess.WHITE))
-    bitboards[4] = float_to_binary_array(board.pieces(chess.QUEEN, chess.WHITE))
-    bitboards[5] = float_to_binary_array(board.pieces(chess.KING, chess.WHITE))
+    bitboards = np.array([
+        white & board.pawns,
+        white & board.knights,
+        white & board.bishops,
+        white & board.rooks,
+        white & board.queens,
+        white & board.kings,
+        black & board.pawns,
+        black & board.knights,
+        black & board.bishops,
+        black & board.rooks,
+        black & board.queens,
+        black & board.kings,
+        0,  # enpassant White
+        0,  # enpassant Black
+        0,  # castling rights and turn
+    ], dtype=np.float32)
 
-    #  Black - PAWN, ROOK, KNIGHT, BISHOP, QUEEN, KING
-    bitboards[6] = float_to_binary_array(board.pieces(chess.PAWN, chess.BLACK))
-    bitboards[7] = float_to_binary_array(board.pieces(chess.ROOK, chess.BLACK))
-    bitboards[8] = float_to_binary_array(board.pieces(chess.KNIGHT, chess.BLACK))
-    bitboards[9] = float_to_binary_array(board.pieces(chess.BISHOP, chess.BLACK))
-    bitboards[10] = float_to_binary_array(board.pieces(chess.QUEEN, chess.BLACK))
-    bitboards[11] = float_to_binary_array(board.pieces(chess.KING, chess.BLACK))
-
+    bitboards = bitboards_to_array(bitboards)
     # bitboard of index 12 and 13 is left for enpassant moves
 
-    # castling rights and who is on turn are just on first five bits of 15th bitboard
-    bitboards[14][0] = board.has_kingside_castling_rights(chess.WHITE)
-    bitboards[14][1] = board.has_queenside_castling_rights(chess.WHITE)
-    bitboards[14][2] = board.has_kingside_castling_rights(chess.BLACK)
-    bitboards[14][3] = board.has_queenside_castling_rights(chess.BLACK)
-    bitboards[14][4] = board.turn
+    # !!!!! toto je take potreba zrychlit zpomaluje na polovinu !!!!!
+    #bitboards[14][0][0] = board.has_kingside_castling_rights(chess.WHITE)
+    #bitboards[14][0][1] = board.has_queenside_castling_rights(chess.WHITE)
+    #bitboards[14][0][2] = board.has_kingside_castling_rights(chess.BLACK)
+    #bitboards[14][0][3] = board.has_queenside_castling_rights(chess.BLACK)
+    #bitboards[14][0][4] = board.turn
     return bitboards
+
+
 def fen_to_bitboards(fen):
     # Definice mapování figur na indexy bitboardů
     piece_to_index = {
