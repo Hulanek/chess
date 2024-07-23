@@ -4,13 +4,15 @@ import numpy as np
 import keras
 from chess import pgn
 import time
-import tensorflow as tf
+import ordered_moving
 from onnxruntime import InferenceSession
 import Functions
 #model = keras.models.load_model('firstModel.keras')
 
-sess = InferenceSession('new_bitboards_model.onnx')
+sess = InferenceSession('4dens_model.onnx')
 num_of_nodes = 0
+sum_of_nodes = 0
+
 def randomPlay(board):
     legals = list(board.legal_moves)
     return legals[random.randint(0, len(legals)-1)]
@@ -19,7 +21,7 @@ def eval(board):
     global num_of_nodes
     num_of_nodes = num_of_nodes + 1
     bitboards = Functions.boardToBitboard(board)
-    bitboards = bitboards.reshape(1, 15, 8, 8)
+    bitboards = bitboards.reshape(1, 960)
     return sess.run(None, {'input': bitboards})[0]
 
 def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
@@ -35,7 +37,10 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
         bestVal = -9999
         bestSequence = move_sequence
         legals = board.legal_moves
-        for move in legals:
+        ordered_moves = ordered_moving.move_ordering(legals, board)
+        ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
+        ordered_moves = list(zip(*ordered_moves)[0])
+        for move in ordered_moves:
             board.push(move)
             newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move])
             if bestVal < newEval:
@@ -50,7 +55,10 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
         bestVal = 9999
         bestSequence = move_sequence
         legals = board.legal_moves
-        for move in legals:
+        ordered_moves = ordered_moving.move_ordering(legals, board)
+        ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
+        ordered_moves = list(zip(*ordered_moves)[0])
+        for move in ordered_moves:
             board.push(move)
             newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move])
             if bestVal > newEval:
@@ -69,7 +77,7 @@ game.headers["White"] = "White player name"
 game.headers["Black"] = "Black player name"
 game.headers["Event"] = "Ultra prestige turnament at Zlín and Prague"
 
-board = chess.Board()
+board = chess.Board('rnb1kbnr/ppp4p/3pp1p1/4Ppq1/5P2/3P3N/PPP3PP/RNBQKB1R w KQkq - 0 6')
 
 node = game
 
@@ -84,7 +92,7 @@ while not board.is_game_over():
     else:
         num_of_nodes = 0
         start = time.time()
-        bestVal, bestSequence = alphaBeta(board, 6, -99999, 99999, board.turn, [])
+        bestVal, bestSequence = alphaBeta(board, 1, -99999, 99999, board.turn, [])
         board.push(bestSequence[0])
         node = node.add_variation(bestSequence[0])
         end = time.time()
