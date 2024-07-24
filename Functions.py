@@ -12,16 +12,6 @@ import random
 
 stockfish = Stockfish("C:/Program Files/stockfish/stockfish-windows-x86-64-avx2.exe")
 
-def float_to_binary_array(num):
-    # Use bit shifting and masking to create the bit array
-    bit_array = np.zeros(64)
-    bit_length = num.mask.bit_length()
-    for i in range(63, 63 - bit_length, -1):
-        bit_array[i] = num.mask & 1
-        num.mask >>= 1
-    bit_array = bit_array.reshape(8, 8)
-    return bit_array
-
 def bitboards_to_array(bb: np.ndarray) -> np.ndarray:
     bb = np.asarray(bb, dtype=np.uint64)[:, np.newaxis]
     s = 8 * np.arange(7, -1, -1, dtype=np.uint64)
@@ -31,6 +21,11 @@ def bitboards_to_array(bb: np.ndarray) -> np.ndarray:
 
 def boardToBitboard(board):
     black, white = board.occupied_co
+
+    if (board.ep_square is not None):
+        enpass = 2 ** board.ep_square
+    else:
+        enpass = 0
 
     bitboards = np.array([
         white & board.pawns,
@@ -45,22 +40,11 @@ def boardToBitboard(board):
         black & board.rooks,
         black & board.queens,
         black & board.kings,
-        0,  # enpassant White
-        0,  # enpassant Black
-        0,  # castling rights and turn
-    ], dtype=np.float32)
+        board.castling_rights + (board.turn * 2) + enpass,
+    ], dtype=np.uint64)
 
     bitboards = bitboards_to_array(bitboards)
-    # bitboard of index 12 and 13 is left for enpassant moves
-
-    # !!!!! toto je take potreba zrychlit zpomaluje na polovinu !!!!!
-    #bitboards[14][0][0] = board.has_kingside_castling_rights(chess.WHITE)
-    #bitboards[14][0][1] = board.has_queenside_castling_rights(chess.WHITE)
-    #bitboards[14][0][2] = board.has_kingside_castling_rights(chess.BLACK)
-    #bitboards[14][0][3] = board.has_queenside_castling_rights(chess.BLACK)
-    #bitboards[14][0][4] = board.turn
     return bitboards
-
 
 def fen_to_bitboards(fen):
     # Definice mapování figur na indexy bitboardů
@@ -155,7 +139,7 @@ def read_fens(input_file, batch_size):
         fens = [next(file).strip() for _ in range(batch_size)]
     return fens
 def process_multiple_fens_to_bit_board(fens):
-    bitboards = np.zeros((len(fens), 15, 8, 8), dtype=np.float32)
+    bitboards = np.zeros((len(fens), 13, 8, 8), dtype=np.float32)
     for i, fen in enumerate(fens):
         tmp_board = chess.Board()
         tmp_board.set_fen(fen)
