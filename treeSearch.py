@@ -9,7 +9,7 @@ from onnxruntime import InferenceSession
 import Functions
 #model = keras.models.load_model('firstModel.keras')
 
-sess = InferenceSession('4dens_model.onnx')
+sess = InferenceSession('model_10k.onnx')
 num_of_nodes = 0
 sum_of_nodes = 0
 
@@ -21,7 +21,7 @@ def eval(board):
     global num_of_nodes
     num_of_nodes = num_of_nodes + 1
     bitboards = Functions.boardToBitboard(board)
-    bitboards = bitboards.reshape(1, 960)
+    bitboards = bitboards.reshape(1, 13, 8, 8)
     return sess.run(None, {'input': bitboards})[0]
 
 def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
@@ -39,10 +39,9 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
         legals = board.legal_moves
         ordered_moves = ordered_moving.move_ordering(legals, board)
         ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
-        ordered_moves = list(zip(*ordered_moves)[0])
         for move in ordered_moves:
-            board.push(move)
-            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move])
+            board.push(move[0])
+            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move[0]])
             if bestVal < newEval:
                 bestVal = newEval
                 bestSequence = newSequence
@@ -57,10 +56,9 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
         legals = board.legal_moves
         ordered_moves = ordered_moving.move_ordering(legals, board)
         ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
-        ordered_moves = list(zip(*ordered_moves)[0])
         for move in ordered_moves:
-            board.push(move)
-            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move])
+            board.push(move[0])
+            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move[0]])
             if bestVal > newEval:
                 bestVal = newEval
                 bestSequence = newSequence
