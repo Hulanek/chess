@@ -68,37 +68,7 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
         return bestVal, bestSequence
 
 
-
-
-
-
-    game = chess.pgn.Game()
-    game.headers["White"] = "White player name"
-    game.headers["Black"] = "Black player name"
-    game.headers["Event"] = "Ultra prestige turnament at Zlín and Prague"
-    board = chess.Board()
-
-    node = game
-    game.headers["Result"] = board.result()
-    print(game)
-
 board = chess.Board()
-timeLeft = 100
-
-turnTime = timeLeft / 25  # allocate 1/25th part of time left for current turn
-
-for i in range(1, 6):
-    depth_time_start = time.time()
-    # asi ukladat posledni sekvenci -> ta se asi vyzkousi jako prvni pri dalsi iteraci
-    bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, board.turn, [])
-    print("info depth", i, "score cp", bestVal[0] * 1000, "pv", bestSequence)
-
-    depth_time_end = time.time()
-    depth_duration = depth_time_end - depth_time_start
-
-    turnTime = turnTime - (depth_duration)
-    print(depth_duration, turnTime)
-
 
 while True:
     args = input().split()
@@ -116,11 +86,31 @@ while True:
     # podle tech oficialnich pravidel by to melo jit nastavit podle fenu ale to zatim nemame
     elif args[:2] == ["position", "startpos"]:
         board = chess.Board()
-        for ply, move in enumerate(args[3:]): # od indexu 4 vynecha slovo moves
+        for ply, move in enumerate(args[3:]): # od indexu 4 - vynecha slovo moves
             board.push(chess.Move.from_uci(move))
 
 
     elif args[0] == "go":
-        bestVal, bestSequence = alphaBeta(board, 5, -99999, 99999, board.turn, [])
+        # chybi inkrementovaci cas
+        wtime, btime, moves= [int(a) / 1000 for a in args[2::2]]
+        if(board.turn == chess.WHITE):
+            timeLeft = wtime
+        else:
+            timeLeft = btime
+
+        turnTime = timeLeft / 25  # allocate 1/25th part of time left for current turn
+
+        for i in range(1, 6):
+            depth_time_start = time.time()
+            # asi ukladat posledni sekvenci -> ta se asi vyzkousi jako prvni pri dalsi iteraci
+            bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, board.turn, [])
+            print("info depth", i, "score cp", int(bestVal[0][0] * 1000))
+
+            depth_time_end = time.time()
+            depth_duration = depth_time_end - depth_time_start
+            turnTime = turnTime - (depth_duration)
+            if(turnTime < 0):
+                break
+
         print("bestmove", bestSequence[0])
 
