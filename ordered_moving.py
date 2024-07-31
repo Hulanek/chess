@@ -9,6 +9,8 @@ def move_ordering(legals, board):
             if chess_piece_values[fromPiece.symbol()] < chess_piece_values[toPiece.symbol()]:
                 score = chess_piece_values[toPiece.symbol()] - chess_piece_values[fromPiece.symbol()]
                 good_moves_dict[move] = score
+            else:
+                good_moves_dict[move] = 0
         else:
             good_moves_dict[move] = 0
     return good_moves_dict
