@@ -8,6 +8,7 @@ import threading
 #model = keras.models.load_model('firstModel.keras')
 
 sess = InferenceSession('2conv32_33_3dense_768_256.onnx')
+
 num_of_nodes = 0
 sum_of_nodes = 0
 
@@ -68,6 +69,19 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
 
 
 
+
+
+
+    game = chess.pgn.Game()
+    game.headers["White"] = "White player name"
+    game.headers["Black"] = "Black player name"
+    game.headers["Event"] = "Ultra prestige turnament at Zlín and Prague"
+    board = chess.Board()
+
+    node = game
+    game.headers["Result"] = board.result()
+    print(game)
+
 board = chess.Board()
 timeLeft = 100
 
@@ -109,3 +123,4 @@ while True:
     elif args[0] == "go":
         bestVal, bestSequence = alphaBeta(board, 5, -99999, 99999, board.turn, [])
         print("bestmove", bestSequence[0])
+
