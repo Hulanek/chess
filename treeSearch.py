@@ -86,8 +86,6 @@ for i in range(1, 6):
     print(depth_duration, turnTime)
 
 
-
-
 while True:
     args = input().split()
 
