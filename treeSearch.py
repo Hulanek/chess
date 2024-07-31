@@ -9,7 +9,7 @@ from onnxruntime import InferenceSession
 import Functions
 #model = keras.models.load_model('firstModel.keras')
 
-sess = InferenceSession('model_10k.onnx')
+sess = InferenceSession('4dense_2dropouts02_10k.onnx')
 num_of_nodes = 0
 sum_of_nodes = 0
 
@@ -34,7 +34,7 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
         return eval(board), move_sequence
 
     if maximize:
-        bestVal = -9999
+        bestVal = -99999
         bestSequence = move_sequence
         legals = board.legal_moves
         ordered_moves = ordered_moving.move_ordering(legals, board)
@@ -51,7 +51,7 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
                 return bestVal, bestSequence
         return bestVal, bestSequence
     else:
-        bestVal = 9999
+        bestVal = 99999
         bestSequence = move_sequence
         legals = board.legal_moves
         ordered_moves = ordered_moving.move_ordering(legals, board)
@@ -75,26 +75,39 @@ game.headers["White"] = "White player name"
 game.headers["Black"] = "Black player name"
 game.headers["Event"] = "Ultra prestige turnament at Zlín and Prague"
 
-board = chess.Board('rnb1kbnr/ppp4p/3pp1p1/4Ppq1/5P2/3P3N/PPP3PP/RNBQKB1R w KQkq - 0 6')
-
-node = game
 
 
-while not board.is_game_over():
-#for i in range(10):
-    if board.turn == chess.WHITE:
-        move = randomPlay(board)
-        board.push(move)
-        node = node.add_variation(move)
-        print(f"{move}")
-    else:
-        num_of_nodes = 0
-        start = time.time()
-        bestVal, bestSequence = alphaBeta(board, 1, -99999, 99999, board.turn, [])
-        board.push(bestSequence[0])
-        node = node.add_variation(bestSequence[0])
-        end = time.time()
-        print(f"{bestSequence[0]}", "num of checked nodes - ", num_of_nodes, "time of tree search - ", end - start)
+for i in range(10):
+    game = chess.pgn.Game()
+    game.headers["White"] = "White player name"
+    game.headers["Black"] = "Black player name"
+    game.headers["Event"] = "Ultra prestige turnament at Zlín and Prague"
+    board = chess.Board()
 
-game.headers["Result"] = board.result()
-print(game)
+    node = game
+    while not board.is_game_over():
+        #for i in range(10):
+        if board.turn == chess.WHITE:
+            move = randomPlay(board)
+            board.push(move)
+            node = node.add_variation(move)
+            print(f"{move}")
+        else:
+            num_of_nodes = 0
+            start = time.time()
+            bestVal, bestSequence = alphaBeta(board, 2, -99999, 99999, board.turn, [])
+            if bestSequence:
+                board.push(bestSequence[0])
+                node = node.add_variation(bestSequence[0])
+                end = time.time()
+                print(f"{bestSequence[0]}", "num of checked nodes - ", num_of_nodes, "time of tree search - ", end - start)
+            else:
+                print(f"No valid moves found by alphaBeta or maybe just one? {[x for x in board.legal_moves]}.")
+                break
+                # legal = board.legal_moves
+                # if board.legal_moves.count() == 1:
+                #     for move in legal:
+                #         board.push(move)
+
+    game.headers["Result"] = board.result()
+    print(game)
