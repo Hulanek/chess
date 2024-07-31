@@ -1,15 +1,14 @@
 import random
 import chess
-import numpy as np
-import keras
-from chess import pgn
-import time
 import ordered_moving
 from onnxruntime import InferenceSession
 import Functions
+import time
+import threading
 #model = keras.models.load_model('firstModel.keras')
 
-sess = InferenceSession('4dense_2dropouts02_10k.onnx')
+sess = InferenceSession('2conv32_33_3dense_768_256.onnx')
+
 num_of_nodes = 0
 sum_of_nodes = 0
 
@@ -69,15 +68,10 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
         return bestVal, bestSequence
 
 
-# game settings
-game = chess.pgn.Game()
-game.headers["White"] = "White player name"
-game.headers["Black"] = "Black player name"
-game.headers["Event"] = "Ultra prestige turnament at Zlín and Prague"
 
 
 
-for i in range(10):
+
     game = chess.pgn.Game()
     game.headers["White"] = "White player name"
     game.headers["Black"] = "Black player name"
@@ -85,29 +79,50 @@ for i in range(10):
     board = chess.Board()
 
     node = game
-    while not board.is_game_over():
-        #for i in range(10):
-        if board.turn == chess.WHITE:
-            move = randomPlay(board)
-            board.push(move)
-            node = node.add_variation(move)
-            print(f"{move}")
-        else:
-            num_of_nodes = 0
-            start = time.time()
-            bestVal, bestSequence = alphaBeta(board, 2, -99999, 99999, board.turn, [])
-            if bestSequence:
-                board.push(bestSequence[0])
-                node = node.add_variation(bestSequence[0])
-                end = time.time()
-                print(f"{bestSequence[0]}", "num of checked nodes - ", num_of_nodes, "time of tree search - ", end - start)
-            else:
-                print(f"No valid moves found by alphaBeta or maybe just one? {[x for x in board.legal_moves]}.")
-                break
-                # legal = board.legal_moves
-                # if board.legal_moves.count() == 1:
-                #     for move in legal:
-                #         board.push(move)
-
     game.headers["Result"] = board.result()
     print(game)
+
+board = chess.Board()
+timeLeft = 100
+
+turnTime = timeLeft / 25  # allocate 1/25th part of time left for current turn
+
+for i in range(1, 6):
+    depth_time_start = time.time()
+    # asi ukladat posledni sekvenci -> ta se asi vyzkousi jako prvni pri dalsi iteraci
+    bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, board.turn, [])
+    print("info depth", i, "score cp", bestVal[0] * 1000, "pv", bestSequence)
+
+    depth_time_end = time.time()
+    depth_duration = depth_time_end - depth_time_start
+
+    turnTime = turnTime - (depth_duration)
+    print(depth_duration, turnTime)
+
+
+
+
+while True:
+    args = input().split()
+
+    if args[0] == "uci":
+        print("model_name")
+        print("uciok")
+
+    elif args[0] == "isready":
+        print("readyok")
+
+    elif args[0] == "quit":
+        break
+
+    # podle tech oficialnich pravidel by to melo jit nastavit podle fenu ale to zatim nemame
+    elif args[:2] == ["position", "startpos"]:
+        board = chess.Board()
+        for ply, move in enumerate(args[3:]): # od indexu 4 vynecha slovo moves
+            board.push(chess.Move.from_uci(move))
+
+
+    elif args[0] == "go":
+        bestVal, bestSequence = alphaBeta(board, 5, -99999, 99999, board.turn, [])
+        print("bestmove", bestSequence[0])
+
