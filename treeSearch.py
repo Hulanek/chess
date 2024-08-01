@@ -8,7 +8,7 @@ import threading
 #model = keras.models.load_model('firstModel.keras')
 
 sess = InferenceSession('2conv32_33_3dense_768_256.onnx')
-
+TIME_NUM_OF_NODES = 20000
 num_of_nodes = 0
 sum_of_nodes = 0
 
@@ -23,34 +23,25 @@ def eval(board):
     bitboards = bitboards.reshape(1, 13, 8, 8)
     return sess.run(None, {'input': bitboards})[0]
 
-def alphaBeta(board, depth, alpha, beta, maximize, move_sequence, PV):
+def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
     if board.is_checkmate():
         if board.turn == chess.WHITE:
             return -10000, move_sequence
         else:
             return 10000, move_sequence
     if depth == 0:
+        print("getting eval from depth ", depth)
         return eval(board), move_sequence
 
     if maximize:
         bestVal = -99999
         bestSequence = move_sequence
-        legals = list(board.legal_moves)
-        # legals jsou nyni list, kvuli dvoji iteraci
-
-        if PV:
-            # kontrola hloubky
-            pv_move = PV[len(move_sequence)] if len(PV) > len(move_sequence) else None
-            if pv_move in legals:
-                # prvek pridan do legals
-                legals.remove(pv_move)
-                legals.insert(0, pv_move)
-
+        legals = board.legal_moves
         ordered_moves = ordered_moving.move_ordering(legals, board)
         ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
         for move in ordered_moves:
             board.push(move[0])
-            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move[0]], PV)
+            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move[0]])
             if bestVal < newEval:
                 bestVal = newEval
                 bestSequence = newSequence
@@ -62,22 +53,12 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence, PV):
     else:
         bestVal = 99999
         bestSequence = move_sequence
-        legals = list(board.legal_moves)
-        # legals jsou nyni list, kvuli dvoji iteraci
-
-        if PV:
-            #kontrola hloubky od rootu a porovnani s PV, PV(3) > 2 -> mame pro depth 2 PV[2]
-            pv_move = PV[len(move_sequence)] if len(PV) > len(move_sequence) else None
-            if pv_move in legals:
-                # prvek pridan do legals
-                legals.remove(pv_move)
-                legals.insert(0, pv_move)
-
+        legals = board.legal_moves
         ordered_moves = ordered_moving.move_ordering(legals, board)
         ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
         for move in ordered_moves:
             board.push(move[0])
-            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move[0]], PV)
+            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move[0]])
             if bestVal > newEval:
                 bestVal = newEval
                 bestSequence = newSequence
@@ -89,7 +70,7 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence, PV):
 
 
 board = chess.Board()
-
+bestVal, bestSequence = alphaBeta(board, 5, -99999, 99999, board.turn, [])
 while True:
     args = input().split()
 
@@ -118,20 +99,16 @@ while True:
         else:
             timeLeft = btime
 
+
         turnTime = timeLeft / 25  # allocate 1/25th part of time left for current turn
-        PV = []
+        turnTime_start = time.time()
+        stopTime = turnTime_start + turnTime
+        print(turnTime_start, turnTime)
+
         for i in range(1, 6):
-            depth_time_start = time.time()
-            # asi ukladat posledni sekvenci -> ta se asi vyzkousi jako prvni pri dalsi iteraci
-            bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, board.turn, [], PV)
-            PV = bestSequence
+            bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, board.turn, [])
             print("info depth", i, "score cp", int(bestVal[0][0] * 1000))
 
-            depth_time_end = time.time()
-            depth_duration = depth_time_end - depth_time_start
-            turnTime = turnTime - (depth_duration)
-            if(turnTime < 0):
-                break
+        print(stopTime, time.time())
 
         print("bestmove", bestSequence[0])
-
