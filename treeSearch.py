@@ -23,25 +23,34 @@ def eval(board):
     bitboards = bitboards.reshape(1, 13, 8, 8)
     return sess.run(None, {'input': bitboards})[0]
 
-def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
+def alphaBeta(board, depth, alpha, beta, maximize, move_sequence, PV):
     if board.is_checkmate():
         if board.turn == chess.WHITE:
             return -10000, move_sequence
         else:
             return 10000, move_sequence
     if depth == 0:
-        print("getting eval from depth ", depth)
         return eval(board), move_sequence
 
     if maximize:
         bestVal = -99999
         bestSequence = move_sequence
-        legals = board.legal_moves
+        legals = list(board.legal_moves)
+        # legals jsou nyni list, kvuli dvoji iteraci
+
+        if PV:
+            # kontrola hloubky
+            pv_move = PV[len(move_sequence)] if len(PV) > len(move_sequence) else None
+            if pv_move in legals:
+                # prvek pridan do legals
+                legals.remove(pv_move)
+                legals.insert(0, pv_move)
+
         ordered_moves = ordered_moving.move_ordering(legals, board)
         ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
         for move in ordered_moves:
             board.push(move[0])
-            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move[0]])
+            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move[0]], PV)
             if bestVal < newEval:
                 bestVal = newEval
                 bestSequence = newSequence
@@ -53,12 +62,22 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
     else:
         bestVal = 99999
         bestSequence = move_sequence
-        legals = board.legal_moves
+        legals = list(board.legal_moves)
+        # legals jsou nyni list, kvuli dvoji iteraci
+
+        if PV:
+            #kontrola hloubky od rootu a porovnani s PV, PV(3) > 2 -> mame pro depth 2 PV[2]
+            pv_move = PV[len(move_sequence)] if len(PV) > len(move_sequence) else None
+            if pv_move in legals:
+                # prvek pridan do legals
+                legals.remove(pv_move)
+                legals.insert(0, pv_move)
+
         ordered_moves = ordered_moving.move_ordering(legals, board)
         ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
         for move in ordered_moves:
             board.push(move[0])
-            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move[0]])
+            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move[0]], PV)
             if bestVal > newEval:
                 bestVal = newEval
                 bestSequence = newSequence
@@ -70,7 +89,7 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence):
 
 
 board = chess.Board()
-bestVal, bestSequence = alphaBeta(board, 5, -99999, 99999, board.turn, [])
+
 while True:
     args = input().split()
 
@@ -101,14 +120,20 @@ while True:
 
 
         turnTime = timeLeft / 25  # allocate 1/25th part of time left for current turn
+
         turnTime_start = time.time()
         stopTime = turnTime_start + turnTime
         print(turnTime_start, turnTime)
 
-        for i in range(1, 6):
-            bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, board.turn, [])
-            print("info depth", i, "score cp", int(bestVal[0][0] * 1000))
+        PV = []
+        for i in range(1, 10):
+            depth_time_start = time.time()
+            # asi ukladat posledni sekvenci -> ta se asi vyzkousi jako prvni pri dalsi iteraci
+            bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, board.turn, [], PV)
+            PV = bestSequence
+            print("info depth", i, "score cp", int(bestVal[0][0] * 1000), "checkedNodes(not in uci format)", num_of_nodes)
 
-        print(stopTime, time.time())
+            if(time.time() > stopTime):
+                break
 
         print("bestmove", bestSequence[0])
