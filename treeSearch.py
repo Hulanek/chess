@@ -21,7 +21,7 @@ def eval(board):
     num_of_nodes = num_of_nodes + 1
     bitboards = Functions.boardToBitboard(board)
     bitboards = bitboards.reshape(1, 13, 8, 8)
-    return sess.run(None, {'input': bitboards})[0]
+    return sess.run(None, {'input': bitboards})[0][0][0]
 
 def alphaBeta(board, depth, alpha, beta, maximize, move_sequence, PV):
     if board.is_checkmate():
@@ -29,6 +29,10 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence, PV):
             return -10000, move_sequence
         else:
             return 10000, move_sequence
+
+    if board.is_stalemate():
+        return 0, move_sequence
+
     if depth == 0:
         return eval(board), move_sequence
 
@@ -88,7 +92,21 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence, PV):
         return bestVal, bestSequence
 
 
-board = chess.Board()
+board = chess.Board("3k4/8/8/8/8/8/7R/5K2 w - - 0 1")
+PV = []
+start = time.time()
+for i in range(1, 7):
+    depth_time_start = time.time()
+    bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, board.turn, [], PV)
+    PV = bestSequence
+    PV_string = ""
+    for j in range(len(PV)):
+        PV_string += chess.Move.uci(PV[j]) + " "
+    print("info depth", i, "score cp", int(bestVal * 1000), "nodes", num_of_nodes, "pv", PV_string)
+end = time.time()
+print("time taken", end - start)
+print("bestmove", PV[0])
+
 
 while True:
     args = input().split()
@@ -103,11 +121,26 @@ while True:
     elif args[0] == "quit":
         break
 
-    # podle tech oficialnich pravidel by to melo jit nastavit podle fenu ale to zatim nemame
-    elif args[:2] == ["position", "startpos"]:
-        board = chess.Board()
-        for ply, move in enumerate(args[3:]): # od indexu 4 - vynecha slovo moves
-            board.push(chess.Move.from_uci(move))
+    # example - position startpos moves e2e4 e7e5
+    elif args[0] == "position":
+        if args[1] == "startpos":
+            board = chess.Board()
+            for ply, move in enumerate(args[3:]):  # from index 3 - skips string moves
+                board.push(chess.Move.from_uci(move))
+
+    # example - position fen 4k3/8/8/8/8/8/7R/5K2 w - - 0 1 moves h2h8
+        elif args[1] == "fen":
+            fen = ""
+            movesIndex = 2
+            for part in args[2:]:
+                if(part != "moves"):
+                    fen += part + " "
+                    movesIndex += 1
+                else:
+                    break
+            board = chess.Board(fen)
+            for ply, move in enumerate(args[(movesIndex + 1):]):
+                board.push(chess.Move.from_uci(move))
 
 
     elif args[0] == "go":
@@ -118,22 +151,21 @@ while True:
         else:
             timeLeft = btime
 
-
         turnTime = timeLeft / 25  # allocate 1/25th part of time left for current turn
 
         turnTime_start = time.time()
         stopTime = turnTime_start + turnTime
-        print(turnTime_start, turnTime)
 
         PV = []
         for i in range(1, 10):
             depth_time_start = time.time()
-            # asi ukladat posledni sekvenci -> ta se asi vyzkousi jako prvni pri dalsi iteraci
             bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, board.turn, [], PV)
             PV = bestSequence
-            print("info depth", i, "score cp", int(bestVal[0][0] * 1000), "checkedNodes(not in uci format)", num_of_nodes)
+            PV_string = ""
+            for i in range(len(PV)):
+                PV_string += chess.Move.uci(PV[i]) + " "
+            print("info depth", i, "score cp", int(bestVal * 1000), "nodes", num_of_nodes, "pv", PV_string, flush=True)
 
             if(time.time() > stopTime):
                 break
-
         print("bestmove", bestSequence[0])
