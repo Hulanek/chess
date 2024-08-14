@@ -8,7 +8,7 @@ import threading
 #model = keras.models.load_model('firstModel.keras')
 
 sess = InferenceSession('2conv32_33_3dense_768_256.onnx')
-TIME_NUM_OF_NODES = 20000
+TIME_NUM_OF_NODES = 1024
 num_of_nodes = 0
 sum_of_nodes = 0
 
@@ -23,7 +23,7 @@ def eval(board):
     bitboards = bitboards.reshape(1, 13, 8, 8)
     return sess.run(None, {'input': bitboards})[0][0][0]
 
-def alphaBeta(board, depth, alpha, beta, maximize, move_sequence, PV):
+def alphaBeta(board, depth, alpha, beta, maximize, move_sequence, PV, stopTime):
     if board.is_checkmate():
         if board.turn == chess.WHITE:
             return -10000, move_sequence
@@ -33,28 +33,30 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence, PV):
     if board.is_stalemate():
         return 0, move_sequence
 
+
     if depth == 0:
         return eval(board), move_sequence
 
     if maximize:
         bestVal = -99999
         bestSequence = move_sequence
+
+        # generating moves
         legals = list(board.legal_moves)
-        # legals jsou nyni list, kvuli dvoji iteraci
-
-        if PV:
-            # kontrola hloubky
-            pv_move = PV[len(move_sequence)] if len(PV) > len(move_sequence) else None
-            if pv_move in legals:
-                # prvek pridan do legals
-                legals.remove(pv_move)
-                legals.insert(0, pv_move)
-
-        ordered_moves = ordered_moving.move_ordering(legals, board)
+        # scoring moves
+        ordered_moves = ordered_moving.move_ordering(legals, board, PV, move_sequence)
+        # sorting moves by score
         ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
+
         for move in ordered_moves:
+
+            #time check
+            if (num_of_nodes % TIME_NUM_OF_NODES == 0):
+                if(time.time() > stopTime):
+                    break
+
             board.push(move[0])
-            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move[0]], PV)
+            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move[0]], PV, stopTime)
             if bestVal < newEval:
                 bestVal = newEval
                 bestSequence = newSequence
@@ -66,22 +68,22 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence, PV):
     else:
         bestVal = 99999
         bestSequence = move_sequence
+
+        # generating moves
         legals = list(board.legal_moves)
-        # legals jsou nyni list, kvuli dvoji iteraci
-
-        if PV:
-            #kontrola hloubky od rootu a porovnani s PV, PV(3) > 2 -> mame pro depth 2 PV[2]
-            pv_move = PV[len(move_sequence)] if len(PV) > len(move_sequence) else None
-            if pv_move in legals:
-                # prvek pridan do legals
-                legals.remove(pv_move)
-                legals.insert(0, pv_move)
-
-        ordered_moves = ordered_moving.move_ordering(legals, board)
+        # scoring moves
+        ordered_moves = ordered_moving.move_ordering(legals, board, PV, move_sequence)
+        # sorting moves by score
         ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
+
         for move in ordered_moves:
+            # time check
+            if (num_of_nodes % TIME_NUM_OF_NODES == 0):
+                if (time.time() > stopTime):
+                    break
+
             board.push(move[0])
-            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move[0]], PV)
+            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move[0]], PV, stopTime)
             if bestVal > newEval:
                 bestVal = newEval
                 bestSequence = newSequence
@@ -92,12 +94,15 @@ def alphaBeta(board, depth, alpha, beta, maximize, move_sequence, PV):
         return bestVal, bestSequence
 
 
-board = chess.Board("3k4/8/8/8/8/8/7R/5K2 w - - 0 1")
+
+board = chess.Board("r1bq1rk1/pppp1ppp/2n5/1B2p3/1b2n3/P1NP1N2/1PP2PPP/R1BQK2R w KQ - 0 7")
 PV = []
+stopTime = time.time() + 30000
 start = time.time()
-for i in range(1, 7):
-    depth_time_start = time.time()
-    bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, board.turn, [], PV)
+for i in range(1, 10):
+    if (time.time() > stopTime):
+        break
+    bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, board.turn, [], PV, stopTime)
     PV = bestSequence
     PV_string = ""
     for j in range(len(PV)):
@@ -107,6 +112,9 @@ end = time.time()
 print("time taken", end - start)
 print("bestmove", PV[0])
 
+
+
+board = chess.Board()
 
 while True:
     args = input().split()
@@ -158,14 +166,16 @@ while True:
 
         PV = []
         for i in range(1, 10):
-            depth_time_start = time.time()
-            bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, board.turn, [], PV)
-            PV = bestSequence
-            PV_string = ""
-            for i in range(len(PV)):
-                PV_string += chess.Move.uci(PV[i]) + " "
-            print("info depth", i, "score cp", int(bestVal * 1000), "nodes", num_of_nodes, "pv", PV_string, flush=True)
-
-            if(time.time() > stopTime):
+            #time check
+            if (time.time() > stopTime):
                 break
+            else:
+                bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, board.turn, [], PV, stopTime)
+                PV = bestSequence
+                PV_string = ""
+                for j in range(len(PV)):
+                    PV_string += chess.Move.uci(PV[j]) + " "
+            print("info depth", i, "score cp", int(bestVal * 1000), "nodes", num_of_nodes, "nps", num_of_nodes/(time.time() - turnTime_start),"pv", PV_string, flush=True)
+
+            print("depth time taken", time.time() - turnTime_start)
         print("bestmove", bestSequence[0])
