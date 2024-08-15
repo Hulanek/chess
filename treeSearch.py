@@ -5,7 +5,6 @@ from onnxruntime import InferenceSession
 import Functions
 import time
 import threading
-#model = keras.models.load_model('firstModel.keras')
 
 sess = InferenceSession('2conv32_33_3dense_768_256.onnx')
 TIME_NUM_OF_NODES = 1024
@@ -23,93 +22,69 @@ def eval(board):
     bitboards = bitboards.reshape(1, 13, 8, 8)
     return sess.run(None, {'input': bitboards})[0][0][0]
 
-def alphaBeta(board, depth, alpha, beta, maximize, move_sequence, PV, stopTime):
+def alphaBeta(board, depth, alpha, beta, move_sequence, PV, stopTime):
     if board.is_checkmate():
         if board.turn == chess.WHITE:
             return -10000, move_sequence
         else:
             return 10000, move_sequence
-
     if board.is_stalemate():
         return 0, move_sequence
-
-
     if depth == 0:
-        return eval(board), move_sequence
+        if board.turn == chess.WHITE:
+            return eval(board), move_sequence
+        else:
+            return -eval(board), move_sequence
 
-    if maximize:
-        bestVal = -99999
-        bestSequence = move_sequence
+    bestVal = -99999
+    bestSequence = move_sequence
 
-        # generating moves
-        legals = list(board.legal_moves)
-        # scoring moves
-        ordered_moves = ordered_moving.move_ordering(legals, board, PV, move_sequence)
-        # sorting moves by score
-        ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
+    # generating moves
+    legals = list(board.legal_moves)
+    # scoring moves
+    ordered_moves = ordered_moving.move_ordering(legals, board, PV, move_sequence)
 
-        for move in ordered_moves:
+    # sorting moves by score
+    # better would be to take the best value in each iteration (you dont have to sort moves that you wont use)
+    ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
 
-            #time check
-            if (num_of_nodes % TIME_NUM_OF_NODES == 0):
-                if(time.time() > stopTime):
-                    break
+    for move in ordered_moves:
 
-            board.push(move[0])
-            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move[0]], PV, stopTime)
-            if bestVal < newEval:
-                bestVal = newEval
-                bestSequence = newSequence
-            board.pop()
-            alpha = max(alpha, bestVal)
-            if alpha >= beta:
-                return bestVal, bestSequence
-        return bestVal, bestSequence
-    else:
-        bestVal = 99999
-        bestSequence = move_sequence
+        #time check
+        if (num_of_nodes % TIME_NUM_OF_NODES == 0):
+            if(time.time() > stopTime):
+                break
 
-        # generating moves
-        legals = list(board.legal_moves)
-        # scoring moves
-        ordered_moves = ordered_moving.move_ordering(legals, board, PV, move_sequence)
-        # sorting moves by score
-        ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
-
-        for move in ordered_moves:
-            # time check
-            if (num_of_nodes % TIME_NUM_OF_NODES == 0):
-                if (time.time() > stopTime):
-                    break
-
-            board.push(move[0])
-            newEval, newSequence = alphaBeta(board, depth - 1, alpha, beta, (not maximize), move_sequence + [move[0]], PV, stopTime)
-            if bestVal > newEval:
-                bestVal = newEval
-                bestSequence = newSequence
-            board.pop()
-            beta = min(beta, bestVal)
-            if beta <= alpha:
-                return bestVal, bestSequence
-        return bestVal, bestSequence
-
+        board.push(move[0])
+        newEval, newSequence = alphaBeta(board, depth - 1, -beta, -alpha, move_sequence + [move[0]], PV, stopTime)
+        newEval = -newEval
+        board.pop()
+        # if newEval >= beta:
+        #     return newEval, bestSequence
+        if newEval > bestVal:
+            bestVal = newEval
+            bestSequence = newSequence
+        alpha = max(alpha, newEval)
+        if alpha >= beta:
+            return bestVal, bestSequence
+    return bestVal, bestSequence
 
 
 board = chess.Board("r1bq1rk1/pppp1ppp/2n5/1B2p3/1b2n3/P1NP1N2/1PP2PPP/R1BQK2R w KQ - 0 7")
 PV = []
 stopTime = time.time() + 30000
-start = time.time()
+turnTime_start = time.time()
 for i in range(1, 10):
     if (time.time() > stopTime):
         break
-    bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, board.turn, [], PV, stopTime)
+    bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, [], PV, stopTime)
     PV = bestSequence
     PV_string = ""
     for j in range(len(PV)):
         PV_string += chess.Move.uci(PV[j]) + " "
-    print("info depth", i, "score cp", int(bestVal * 1000), "nodes", num_of_nodes, "pv", PV_string)
+    print("info depth", i, "score cp", int(bestVal * 1000), "nodes", num_of_nodes, "nps", num_of_nodes/(time.time() - turnTime_start), "pv", PV_string)
 end = time.time()
-print("time taken", end - start)
+print("time taken", end - turnTime_start)
 print("bestmove", PV[0])
 
 
@@ -170,7 +145,7 @@ while True:
             if (time.time() > stopTime):
                 break
             else:
-                bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, board.turn, [], PV, stopTime)
+                bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, [], PV, stopTime)
                 PV = bestSequence
                 PV_string = ""
                 for j in range(len(PV)):
