@@ -1,7 +1,4 @@
 import chess
-import keras
-from keras import Sequential
-from keras import layers
 import numpy as np
 from stockfish import Stockfish
 import time
