@@ -4,12 +4,17 @@ import ordered_moving
 from onnxruntime import InferenceSession
 import Functions
 import time
+from bit_tryer import Transposition_table2
+from chess import polyglot
+from transpositionTable import TT
+
 import threading
 
 sess = InferenceSession('2conv32_33_3dense_768_256.onnx')
 TIME_NUM_OF_NODES = 1024
 num_of_nodes = 0
 sum_of_nodes = 0
+tt = TT(128)
 
 def randomPlay(board):
     legals = list(board.legal_moves)
@@ -22,7 +27,30 @@ def eval(board):
     bitboards = bitboards.reshape(1, 13, 8, 8)
     return sess.run(None, {'input': bitboards})[0][0][0]
 
-def alphaBeta(board, depth, alpha, beta, move_sequence, PV, stopTime):
+def trans_table_add2(zobrist, eval, depth, trans_table, move_sequence, entry_type):
+    trans_table.set(zobrist, eval, depth, move_sequence, entry_type)
+
+
+def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stopTime):
+    zobrist_key = chess.polyglot.zobrist_hash(board)
+
+    alpha_orig = alpha
+
+    ttEntry, valid = tt.readEntry(zobrist_key)
+    if valid:
+        if ttEntry.flag == "EXACT" and ttEntry.depth >= original_depth:
+            if ttEntry.best_move:
+                return ttEntry.evaluation, move_sequence
+        #     return ttEntry.evaluation, ttEntry.bestMove
+        elif ttEntry.flag == "LOWERBOUND":
+            alpha = max(alpha, ttEntry.evaluation)
+
+        elif ttEntry.flag == "UPPERBOUND":
+            beta = min(beta, ttEntry.evaluation)
+        if alpha >= beta:
+            if ttEntry.best_move:
+                return ttEntry.evaluation, move_sequence
+
     if board.is_checkmate():
         if board.turn == chess.WHITE:
             return -10000, move_sequence
@@ -31,10 +59,27 @@ def alphaBeta(board, depth, alpha, beta, move_sequence, PV, stopTime):
     if board.is_stalemate():
         return 0, move_sequence
     if depth == 0:
+        global num_of_nodes
         if board.turn == chess.WHITE:
-            return eval(board), move_sequence
+            zobrist_key = chess.polyglot.zobrist_hash(board)
+            TEntry, isSameZobrist = tt.readEntry(zobrist_key)
+            if isSameZobrist:
+                num_of_nodes += 1
+                return TEntry.evaluation, move_sequence
+
+            evaluation = eval(board)
+            tt.writeEntry(zobrist_key, evaluation, move_sequence[original_depth - depth - 1], original_depth, 'EXACT', board.fullmove_number)
+            return evaluation, move_sequence
         else:
-            return -eval(board), move_sequence
+            zobrist_key = chess.polyglot.zobrist_hash(board)
+            TEntry, isSameZobrist = tt.readEntry(zobrist_key)
+            if isSameZobrist:
+                num_of_nodes += 1
+                return -TEntry.evaluation, move_sequence
+
+            evaluation = eval(board)
+            tt.writeEntry(zobrist_key, evaluation, move_sequence[original_depth - depth - 1], original_depth, 'EXACT', board.fullmove_number)
+            return -evaluation, move_sequence
 
     bestVal = -99999
     bestSequence = move_sequence
@@ -56,7 +101,7 @@ def alphaBeta(board, depth, alpha, beta, move_sequence, PV, stopTime):
                 break
 
         board.push(move[0])
-        newEval, newSequence = alphaBeta(board, depth - 1, -beta, -alpha, move_sequence + [move[0]], PV, stopTime)
+        newEval, newSequence = alphaBeta(board, depth - 1, original_depth, -beta, -alpha, move_sequence + [move[0]], PV, stopTime)
         newEval = -newEval
         board.pop()
         # if newEval >= beta:
@@ -66,23 +111,36 @@ def alphaBeta(board, depth, alpha, beta, move_sequence, PV, stopTime):
             bestSequence = newSequence
         alpha = max(alpha, newEval)
         if alpha >= beta:
-            return bestVal, bestSequence
+            break
+
+    tt_value = newEval
+    if tt_value <= alpha_orig:
+        tt_entry_flag = "UPPERBOUND"
+    elif tt_value >= beta:
+        tt_entry_flag = "LOWERBOUND"
+    else:
+        tt_entry_flag = "EXACT"
+
+    tt_entry_move = bestSequence[original_depth- depth - 1]
+    tt.writeEntry(zobrist_key, tt_value, tt_entry_move, original_depth, tt_entry_flag, board.fullmove_number)
+
     return bestVal, bestSequence
 
 
-board = chess.Board("r1bq1rk1/pppp1ppp/2n5/1B2p3/1b2n3/P1NP1N2/1PP2PPP/R1BQK2R w KQ - 0 7")
+board = chess.Board('rnb1k1nr/pppp2pp/5q2/4pp2/1b1PP3/2P5/PP1B1PPP/RN1QKBNR w KQkq - 1 5')
 PV = []
 stopTime = time.time() + 30000
 turnTime_start = time.time()
-for i in range(1, 10):
+for i in range(1, 9):
     if (time.time() > stopTime):
         break
-    bestVal, bestSequence = alphaBeta(board, i, -99999, 99999, [], PV, stopTime)
+    bestVal, bestSequence = alphaBeta(board, i, i, -99999, 99999, [], PV, stopTime)
     PV = bestSequence
     PV_string = ""
     for j in range(len(PV)):
         PV_string += chess.Move.uci(PV[j]) + " "
     print("info depth", i, "score cp", int(bestVal * 1000), "nodes", num_of_nodes, "nps", num_of_nodes/(time.time() - turnTime_start), "pv", PV_string)
+    #tt.contentOfTT()
 end = time.time()
 print("time taken", end - turnTime_start)
 print("bestmove", PV[0])
