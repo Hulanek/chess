@@ -1,4 +1,5 @@
 import chess
+import chess.polyglot
 
 piece_value = {
     'p': 100,
@@ -14,29 +15,26 @@ piece_value = {
     'Q': 900,
     'K': 20000,
 }
-def move_ordering(legals, board, PV, move_sequence):
+def move_ordering(legals, board, PV, move_sequence, tt):
 
     moves_scored = {}
-
     for move in legals:
-        if board.is_capture(move) and not board.is_en_passant(move):
-            moves_scored[move] = capture_move_score(board, move)
-        elif move.promotion:
-            moves_scored[move] = 10000
-        else:
-            moves_scored[move] = 0
-    if PV:
-        pv_move = PV[len(move_sequence)] if len(PV) > len(move_sequence) else None
-        if pv_move in legals:
-            moves_scored.update({pv_move:99999})
+        board.push(move)
+        zobrist_key = chess.polyglot.zobrist_hash(board)
+        board.pop()
+        TEntry, isSameZobrist = tt.readEntry(zobrist_key)
+        if isSameZobrist:
+            moves_scored[move] = TEntry.evaluation
+            continue # do not remove move from legals
+        moves_scored[move] = 0
 
+    # try to get best move from tt if its there give it a big value
+    zobrist_key = chess.polyglot.zobrist_hash(board)
+    TEntry, isSameZobrist = tt.readEntry(zobrist_key)
+
+    # forcing best move from tt to be first (if tt contains info about the move its surely deeper search)
+    if isSameZobrist and TEntry.best_move != None:
+        if TEntry.best_move in moves_scored:
+            #print("forcing move", TEntry.best_move, "as a move to try first with depth of", TEntry.depth)
+            moves_scored[TEntry.best_move] = 99999
     return moves_scored
-
-
-# Rule that is assuming that is capturing stronger piece with weaker piece is better
-def capture_move_score(board, move):
-    fromPiece = board.piece_at(move.from_square)
-    toPiece = board.piece_at(move.to_square)
-    score = piece_value[toPiece.symbol()] - piece_value[fromPiece.symbol()]
-    return score
-
