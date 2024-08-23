@@ -12,7 +12,7 @@ test_fens = ["1k6/8/5ppp/8/5PPP/8/8/1K6 w HAha - 0 1", # 3v3 pawns
             "8/p4p2/1ppk2p1/4p2p/8/2P1PPP1/P1P4P/3K4 w - - 0 1", # pawns fight
             "8/8/3k4/8/8/1P6/1K6/8 w - - 1 2", #pawn promotion
             "r1bqk1r1/1p1p1n2/p1n2pN1/2p1b2Q/2P1Pp2/1PN5/PB4PP/R4RK1 w q - 0 1",
-            "r1n2N1k/2n2K1p/3pp3/5Pp1/b5R1/8/1PPP4/8 w - - 0 1',"
+            "r1n2N1k/2n2K1p/3pp3/5Pp1/b5R1/8/1PPP4/8 w - - 0 1",
             "r1b1r1k1/1pqn1pbp/p2pp1p1/P7/1n1NPP1Q/2NBBR2/1PP3PP/R6K w - -",
             "5b2/p2k1p2/P3pP1p/n2pP1p1/1p1P2P1/1P1KBN2/7P/8 w - -",
             "r3kbnr/1b3ppp/pqn5/1pp1P3/3p4/1BN2N2/PP2QPPP/R1BR2K1 w kq - 0 1",
@@ -22,7 +22,7 @@ sess = InferenceSession('2conv32_33_3dense_768_256.onnx')
 TIME_NUM_OF_NODES = 1024
 num_of_nodes = 0
 sum_of_nodes = 0
-tt = TT(65536) # 2^16 = 65536
+tt = TT(65356) # 2^16 = 65536 # 2^18
 
 def randomPlay(board):
     legals = list(board.legal_moves)
@@ -35,6 +35,18 @@ def eval(board):
     bitboards = bitboards.reshape(1, 13, 8, 8)
     return sess.run(None, {'input': bitboards})[0][0][0]
 
+
+
+def store_killer_move(current_move, depth, killer_moves):
+    if current_move not in killer_moves[depth]:
+        if len(killer_moves[depth]) == 2:
+            killer_moves[depth][1] = killer_moves[depth][0]
+
+        killer_moves[depth][0] = current_move
+
+
+
+killer_moves = [[] for _ in range(10)]
 def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stopTime):
 
     zobrist_key = chess.polyglot.zobrist_hash(board)
@@ -42,14 +54,17 @@ def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stop
     ttEntry, valid = tt.readEntry(zobrist_key)
     if valid:
         if ttEntry.flag == "EXACT" and ttEntry.depth >= original_depth:
-            if ttEntry.best_move != None:
+            if ttEntry.best_move is not None and board.is_legal(ttEntry.best_move):
                 return ttEntry.evaluation, move_sequence + [ttEntry.best_move]
-            elif ttEntry.flag == "LOWERBOUND":
+        elif ttEntry.flag == "LOWERBOUND":
+            if ttEntry.depth >= original_depth:
                 alpha = max(alpha, ttEntry.evaluation)
-            elif ttEntry.flag == "UPPERBOUND":
+        elif ttEntry.flag == "UPPERBOUND":
+            if ttEntry.depth >= original_depth:
                 beta = min(beta, ttEntry.evaluation)
+
         if alpha >= beta:
-            if ttEntry.best_move != None:
+            if ttEntry.best_move is not None and board.is_legal(ttEntry.best_move):
                 return ttEntry.evaluation, move_sequence + [ttEntry.best_move]
 
     # if(depth >= 3 and board.is_check() == False):
@@ -93,16 +108,11 @@ def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stop
     bestSequence = move_sequence
 
     # generating moves
-    legals = list(board.legal_moves)
 
-    # scoring moves
-    ordered_moves = ordered_moving.move_ordering(legals, board, PV, move_sequence, tt)
-
-    # sorting moves by score
-    # better would be to take the best value in each iteration (you dont have to sort moves that you wont use)
-    ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
-    #print(depth, ordered_moves)
-
+    if ttEntry.best_move != None:
+        ordered_moves = ordered_moving.order_together(board, killer_moves, depth, original_depth, tt_move=ttEntry.best_move)
+    else:
+        ordered_moves = ordered_moving.order_together(board, legals, killer_moves, depth, original_depth)
     for move in ordered_moves:
         #print(move, depth)
         #time check
@@ -110,8 +120,8 @@ def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stop
             if(time.time() > stopTime):
                 break
 
-        board.push(move[0])
-        newEval, newSequence = alphaBeta(board, depth - 1, original_depth, -beta, -alpha, move_sequence + [move[0]], PV, stopTime)
+        board.push(move)
+        newEval, newSequence = alphaBeta(board, depth - 1, original_depth, -beta, -alpha, move_sequence + [move], PV, stopTime)
         newEval = -newEval
         board.pop()
 
@@ -120,6 +130,12 @@ def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stop
             bestSequence = newSequence
         alpha = max(alpha, newEval)
         if alpha >= beta:
+            if len(killer_moves[original_depth - depth]) < 2:
+                # Directly append if less than 2 killer moves stored
+                killer_moves[original_depth - depth].append(move)
+            else:
+                # Call to update killer moves list
+                store_killer_move(move, original_depth - depth, killer_moves)
             break
     tt_value = bestVal
     if tt_value <= alpha_orig:
@@ -128,14 +144,17 @@ def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stop
          tt_entry_flag = "LOWERBOUND"
     else:
          tt_entry_flag = "EXACT"
-    tt_entry_move = bestSequence[original_depth - depth]
+
+    tt_entry_move = bestSequence[original_depth - depth - 1]
+
     tt.writeEntry(zobrist_key, tt_value, tt_entry_move, original_depth, tt_entry_flag, board.fullmove_number)
     return bestVal, bestSequence
 
 for fen_index in range(0, len(test_fens)):
     board = chess.Board(test_fens[fen_index])
     PV = []
-    stopTime = time.time() + 30000
+    num_of_nodes = 0
+    stopTime = time.time() + 10
     turnTime_start = time.time()
     for i in range(1, 10):
         if (time.time() > stopTime):
@@ -145,7 +164,7 @@ for fen_index in range(0, len(test_fens)):
         PV_string = ""
         for j in range(len(PV)):
             PV_string += chess.Move.uci(PV[j]) + " "
-        print("info depth", i, "score cp", int(bestVal * 1000), "nodes", num_of_nodes, "nps", num_of_nodes/(time.time() - turnTime_start), "pv", PV_string)
+        print("info depth", i, "score cp", int(bestVal * 1000), "nodes", num_of_nodes, "nps",num_of_nodes/(time.time() - turnTime_start), "pv", PV_string)
     end = time.time()
     print("time taken", end - turnTime_start)
     print("bestmove", PV[0])
