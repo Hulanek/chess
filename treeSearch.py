@@ -38,6 +38,15 @@ def eval(board):
     bitboards = bitboards.reshape(1, 13, 8, 8)
     return sess.run(None, {'input': bitboards})[0][0][0]
 
+def store_killer_move(current_move, depth, killer_moves):
+    if current_move not in killer_moves[depth]:
+        if len(killer_moves[depth]) == 2:
+            killer_moves[depth][1] = killer_moves[depth][0]
+
+        killer_moves[depth][0] = current_move
+
+killer_moves = [[] for _ in range(10)]
+
 def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stopTime):
     alphaOrig = alpha
     zobrist_key = chess.polyglot.zobrist_hash(board)
@@ -92,10 +101,13 @@ def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stop
     # scoring moves
     ordered_moves = ordered_moving.move_ordering(legals, board, PV, move_sequence, tt)
 
+    #Ordered moves conclusion
+
     # sorting moves by score
     # better would be to take the best value in each iteration (you dont have to sort moves that you wont use)
     ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
     #print(depth, ordered_moves)
+
 
     for move in ordered_moves:
         #print(move, depth)
@@ -114,6 +126,12 @@ def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stop
             bestSequence = newSequence
         alpha = max(alpha, newEval)
         if alpha >= beta:
+            if len(killer_moves[original_depth - depth]) < 2:
+                # Update if less than 2
+                killer_moves[original_depth - depth].append(move)
+            else:
+                # if 2(full) -> update
+                store_killer_move(move, original_depth - depth, killer_moves)
             break
 
     # tt write
