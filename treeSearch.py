@@ -25,7 +25,7 @@ LOWERBOUND = 2
 EXACT = 3
 num_of_nodes = 0
 sum_of_nodes = 0
-tt = TT(2 ** 16) # 2^16 = 65536
+#tt = TT(2 ** 16) # 2^16 = 65536
 
 def randomPlay(board):
     legals = list(board.legal_moves)
@@ -86,32 +86,35 @@ def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stop
             TEntry, isSameZobrist = tt.readEntry(zobrist_key)
             if isSameZobrist:
                 num_of_nodes += 1
-                return -TEntry.evaluation, move_sequence
+                return TEntry.evaluation, move_sequence
 
             evaluation = eval(board)
-            tt.writeEntry(zobrist_key, evaluation, None, depth, 0, board.fullmove_number)
+            tt.writeEntry(zobrist_key, -evaluation, None, depth, 0, board.fullmove_number)
             return -evaluation, move_sequence
 
     bestVal = -99999
     bestSequence = move_sequence
 
     # generating moves
-    legals = list(board.legal_moves)
-
-    # scoring moves
-    ordered_moves = ordered_moving.move_ordering(legals, board, PV, move_sequence, tt)
-
-    #Ordered moves conclusion
-
-    # sorting moves by score
-    # better would be to take the best value in each iteration (you dont have to sort moves that you wont use)
-    ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
+    # legals = list(board.legal_moves)
+    #
+    # # scoring moves
+    # ordered_moves = ordered_moving.move_ordering(legals, board, PV, move_sequence, PV, tt)
+    #
+    # #Ordered moves conclusion
+    #
+    # # sorting moves by score
+    # # better would be to take the best value in each iteration (you dont have to sort moves that you wont use)
+    # ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
     #print(depth, ordered_moves)
+    ordered_moves = ordered_moving.order_together(board, killer_moves, depth, original_depth, tt, PV)
 
 
-    for move in ordered_moves:
+    for _ in range(len(ordered_moves)):
         #print(move, depth)
         #time check
+        move = max(ordered_moves.items(), key=lambda item: item[1])
+        del ordered_moves[move[0]]
         if (num_of_nodes % TIME_NUM_OF_NODES == 0):
             if(time.time() > stopTime):
                 break

@@ -15,7 +15,7 @@ piece_value = {
     'Q': 900,
     'K': 20000,
 }
-def move_ordering(legals, board, PV, move_sequence, tt):
+def move_ordering(legals, board, PV, tt):
 
     moves_scored = {}
     for move in legals:
@@ -26,7 +26,7 @@ def move_ordering(legals, board, PV, move_sequence, tt):
         if isSameZobrist:
             moves_scored[move] = TEntry.evaluation
             continue # do not remove move from legals
-        moves_scored[move] = 0
+        moves_scored[move] = 900
 
     # try to get best move from tt if its there give it a big value
     zobrist_key = chess.polyglot.zobrist_hash(board)
@@ -39,35 +39,33 @@ def move_ordering(legals, board, PV, move_sequence, tt):
             moves_scored[TEntry.best_move] = 99999
     return moves_scored
 
-
-def order_together(board, killer_moves, depth, original_depth, tt_move=None):
+# PV, TT, KILLER
+def order_together(board, killer_moves, depth, original_depth, tt, PV):
     #TRANSPOSITION TABLE HITS FIRST ---- get hits into table/dict and sort them
-    ordered_moves = []
     legals = list(board.legal_moves)
+    ordered_moves = move_ordering(legals, board, PV, tt)
+    # sorted_tt_hits_evaluated = sorted(unsorted_tt_hits.items(), key=lambda item: item[1], reverse=True)
 
 
-    if tt_move in legals:
-        if board.is_legal(tt_move):
-            ordered_moves = [tt_move]  # and value ?
-            legals.remove(tt_move)
+   # CAPTURES SECOND    ----- sort captures and update the dict
+    for move in legals:
+        if board.is_legal(move) and not board.is_en_passant(move):
+            if move not in ordered_moves.keys():
+                ordered_moves[move] = capture_move_score(board, move)
 
-    #CAPTURES SECOND    ----- sort captures and update the dict
-    captures = [(move, capture_move_score(board, move)) for move in legals if board.is_capture(move) and not board.is_en_passant(move)]
-    captures.sort(key= lambda pair: pair[1], reverse=True)
+    # delete captures and tt from legals
+    legals = [move for move in legals if move not in ordered_moves.keys()]
 
-    captures_moves = [move for move, _ in captures if move != tt_move]
-    legals = [move for move in legals if move not in captures_moves]
-    ordered_moves.extend(captures_moves)
 
     #TWO KILLER MOVES ------ update and all others should be below these 3
     for killer in killer_moves[original_depth - depth]:
         if killer in legals:
+            i = 1
             if killer in legals and board.is_legal(killer):
-                if killer not in ordered_moves or killer != tt_move:
-                    ordered_moves.append(killer)
+                if killer not in ordered_moves.keys():
+                    ordered_moves[killer] = i * 100
                     legals.remove(killer)
-
-    ordered_moves.extend(legals)
+                    i += 1
 
     return ordered_moves
 
