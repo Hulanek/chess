@@ -1,5 +1,12 @@
 import chess
 import chess.polyglot
+           # q    n    b    r    q    k
+mvv_lva = [[105, 205, 305, 405, 505, 605],  #k
+            [104, 204, 304, 404, 504, 604], #q
+            [103, 203, 303, 403, 503, 603], #r
+            [102, 202, 302, 402, 502, 602], #b
+            [101, 201, 301, 401, 501, 601], #n
+            [100, 200, 300, 400, 500, 600]] #p
 
 piece_value = {
     'p': 100,
@@ -15,65 +22,32 @@ piece_value = {
     'Q': 900,
     'K': 20000,
 }
-def move_ordering(legals, board, PV, tt):
+def move_ordering(legals, board, tt):
 
     moves_scored = {}
+
     for move in legals:
-        board.push(move)
-        zobrist_key = chess.polyglot.zobrist_hash(board)
-        board.pop()
-        TEntry, isSameZobrist = tt.readEntry(zobrist_key)
-        if isSameZobrist:
-            moves_scored[move] = TEntry.evaluation
-            continue # do not remove move from legals
-        moves_scored[move] = 900
+        if board.is_capture(move) and not board.is_en_passant(move):
+            moves_scored[move] = capture_move_score(board, move)
+
+        else:
+            moves_scored[move] = 0
 
     # try to get best move from tt if its there give it a big value
     zobrist_key = chess.polyglot.zobrist_hash(board)
     TEntry, isSameZobrist = tt.readEntry(zobrist_key)
 
     # forcing best move from tt to be first (if tt contains info about the move its surely deeper search)
-    if isSameZobrist and TEntry.best_move != None:
-        if TEntry.best_move in moves_scored:
-            #print("forcing move", TEntry.best_move, "as a move to try first with depth of", TEntry.depth)
-            moves_scored[TEntry.best_move] = 99999
+    #if isSameZobrist and TEntry.best_move != None:
+    #     if TEntry.best_move in moves_scored:
+    #         #print("forcing move", TEntry.best_move, "as a move to try first with depth of", TEntry.depth)
+    #         moves_scored[TEntry.best_move] = 99999
     return moves_scored
-
-# PV, TT, KILLER
-def order_together(board, killer_moves, depth, original_depth, tt, PV):
-    #TRANSPOSITION TABLE HITS FIRST ---- get hits into table/dict and sort them
-    legals = list(board.legal_moves)
-    ordered_moves = move_ordering(legals, board, PV, tt)
-    # sorted_tt_hits_evaluated = sorted(unsorted_tt_hits.items(), key=lambda item: item[1], reverse=True)
-
-
-   # CAPTURES SECOND    ----- sort captures and update the dict
-    for move in legals:
-        if board.is_legal(move) and not board.is_en_passant(move):
-            if move not in ordered_moves.keys():
-                ordered_moves[move] = capture_move_score(board, move)
-
-    # delete captures and tt from legals
-    legals = [move for move in legals if move not in ordered_moves.keys()]
-
-
-    #TWO KILLER MOVES ------ update and all others should be below these 3
-    for killer in killer_moves[original_depth - depth]:
-        if killer in legals:
-            i = 1
-            if killer in legals and board.is_legal(killer):
-                if killer not in ordered_moves.keys():
-                    ordered_moves[killer] = i * 100
-                    legals.remove(killer)
-                    i += 1
-
-    return ordered_moves
-
 
 
 # Rule that is assuming that is capturing stronger piece with weaker piece is better
 def capture_move_score(board, move):
-    fromPiece = board.piece_at(move.from_square)
-    toPiece = board.piece_at(move.to_square)
-    score = piece_value[toPiece.symbol()] - piece_value[fromPiece.symbol()]
-    return score if score > 0 else 0
+    fromPiece = board.piece_type_at(move.from_square)
+    toPiece = board.piece_type_at(move.to_square)
+    score = mvv_lva[fromPiece - 1][toPiece - 1]
+    return score

@@ -6,8 +6,11 @@ import Functions
 import time
 from chess import polyglot
 from transpositionTable import TT
+import evaluation
 
-test_fens = ["1k6/8/5ppp/8/5PPP/8/8/1K6 w HAha - 0 1",   # 3v3 pawns
+test_fens = [#"r2kbq1r/pppq1p1p/b1np2p1/4p1P1/P3Pp1P/N4P1B/1PPP4/R1BQK1NR b KQ - 0 13",
+            "r2q1rk1/ppp2ppp/2n1bn2/2b1p3/3pP3/3P1NPP/PPP1NPB1/R1BQ1RK1 w - - 0 9",#video fen
+            "1k6/8/5ppp/8/5PPP/8/8/1K6 w HAha - 0 1",   # 3v3 pawns
             "1k6/8/8/8/8/8/6Q1/3K4 w - - 0 1", # queen mat
             "8/p4p2/1ppk2p1/4p2p/8/2P1PPP1/P1P4P/3K4 w - - 0 1", # pawns fight
             "8/8/3k4/8/8/1P6/1K6/8 w - - 1 2", #pawn promotion
@@ -25,32 +28,66 @@ LOWERBOUND = 2
 EXACT = 3
 num_of_nodes = 0
 sum_of_nodes = 0
-#tt = TT(2 ** 16) # 2^16 = 65536
+tt = TT(2 ** 16) # 2^16 = 65536
 
 def randomPlay(board):
     legals = list(board.legal_moves)
     return legals[random.randint(0, len(legals)-1)]
 
 def eval(board):
-    global num_of_nodes
-    num_of_nodes = num_of_nodes + 1
     bitboards = Functions.boardToBitboard(board)
     bitboards = bitboards.reshape(1, 13, 8, 8)
-    return sess.run(None, {'input': bitboards})[0][0][0]
+    #return sess.run(None, {'input': bitboards})[0][0][0]
+    return evaluation.materialEvaluation(board)
 
-def store_killer_move(current_move, depth, killer_moves):
-    if current_move not in killer_moves[depth]:
-        if len(killer_moves[depth]) == 2:
-            killer_moves[depth][1] = killer_moves[depth][0]
+def quiescenceSearch(board, alpha, beta, move_sequence):
+    global num_of_nodes
+    num_of_nodes = num_of_nodes + 1
+    if board.turn == chess.WHITE:
+        evaluation = eval(board)
+    else:
+        evaluation = -eval(board)
+    if evaluation >= beta:
+        return beta, move_sequence
+    if evaluation > alpha:
+        alpha = evaluation
+    captureLegals = list(board.legal_moves)
 
-        killer_moves[depth][0] = current_move
+    i = 0
+    while i < len(captureLegals):
+        if not board.is_capture(captureLegals[i]): # en passant chybi
+            captureLegals.remove(captureLegals[i])
+        else:
+            i += 1
 
-killer_moves = [[] for _ in range(10)]
+    if(len(captureLegals) == 0):
+        return evaluation, move_sequence
+
+    scoredCaptures = ordered_moving.move_ordering(captureLegals, board, tt)
+
+    captureLegals = sorted(scoredCaptures.items(), key=lambda item: item[1], reverse=True)
+
+    for move in captureLegals:
+        board.push(move[0])
+        newEval, newSequence = quiescenceSearch(board, -beta, -alpha, move_sequence + [move[0]])
+        newEval = -newEval
+        board.pop()
+        if (newEval >= beta):
+            return beta, newSequence
+        if (newEval > alpha):
+            alpha = newEval
+
+    return alpha, newSequence
+
+
 
 def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stopTime):
     alphaOrig = alpha
     zobrist_key = chess.polyglot.zobrist_hash(board)
     ttEntry, isSameZobrist = tt.readEntry(zobrist_key)
+
+    if board.is_repetition():
+        return 0, move_sequence
 
     # tt cutoff
     if isSameZobrist and ttEntry.depth >= depth and ttEntry.best_move != None:
@@ -66,55 +103,41 @@ def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stop
 
     if board.is_checkmate():
         if board.turn == chess.WHITE:
-            return -10000, move_sequence
-        else:
             return 10000, move_sequence
+        else:
+            return -10000, move_sequence
     if board.is_stalemate():
         return 0, move_sequence
+
+    # its not perfect solution but for engines it should be fine
+    # for using this condition (breaking repetition) you need at least depth 2
+    if board.is_repetition():
+        return 0, move_sequence
+    #if board.can_claim_threefold_repetition():
+        #return 0, move_sequence
     if depth == 0:
-        global num_of_nodes
-        if board.turn == chess.WHITE:
-            TEntry, isSameZobrist = tt.readEntry(zobrist_key)
-            if isSameZobrist:
-                num_of_nodes += 1
-                return TEntry.evaluation, move_sequence
 
-            evaluation = eval(board)
-            tt.writeEntry(zobrist_key, evaluation, None, depth, 0, board.fullmove_number)
-            return evaluation, move_sequence
-        else:
-            TEntry, isSameZobrist = tt.readEntry(zobrist_key)
-            if isSameZobrist:
-                num_of_nodes += 1
-                return TEntry.evaluation, move_sequence
+        quietEval, move_sequence = quiescenceSearch(board, alpha, beta, move_sequence)
+        # this is maybe bullshit
+        #tt.writeEntry(zobrist_key, quietEval, None, depth, 0, board.fullmove_number)
+        return quietEval, move_sequence
 
-            evaluation = eval(board)
-            tt.writeEntry(zobrist_key, -evaluation, None, depth, 0, board.fullmove_number)
-            return -evaluation, move_sequence
 
     bestVal = -99999
     bestSequence = move_sequence
 
     # generating moves
-    # legals = list(board.legal_moves)
-    #
-    # # scoring moves
-    # ordered_moves = ordered_moving.move_ordering(legals, board, PV, move_sequence, PV, tt)
-    #
-    # #Ordered moves conclusion
-    #
-    # # sorting moves by score
-    # # better would be to take the best value in each iteration (you dont have to sort moves that you wont use)
-    # ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
-    #print(depth, ordered_moves)
-    ordered_moves = ordered_moving.order_together(board, killer_moves, depth, original_depth, tt, PV)
+    legals = list(board.legal_moves)
 
+    # scoring moves
+    ordered_moves = ordered_moving.move_ordering(legals, board, tt)
 
-    for _ in range(len(ordered_moves)):
+    # sorting moves by score
+    # better would be to take the best value in each iteration (you dont have to sort moves that you wont use)
+    ordered_moves = sorted(ordered_moves.items(), key=lambda item: item[1], reverse=True)
+    for move in ordered_moves:
         #print(move, depth)
         #time check
-        move = max(ordered_moves.items(), key=lambda item: item[1])
-        del ordered_moves[move[0]]
         if (num_of_nodes % TIME_NUM_OF_NODES == 0):
             if(time.time() > stopTime):
                 break
@@ -129,12 +152,6 @@ def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stop
             bestSequence = newSequence
         alpha = max(alpha, newEval)
         if alpha >= beta:
-            if len(killer_moves[original_depth - depth]) < 2:
-                # Update if less than 2
-                killer_moves[original_depth - depth].append(move)
-            else:
-                # if 2(full) -> update
-                store_killer_move(move, original_depth - depth, killer_moves)
             break
 
     # tt write
@@ -149,15 +166,19 @@ def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stop
     tt.writeEntry(zobrist_key, bestVal, bestSequence[original_depth - depth], depth, ttFlag, board.fullmove_number)
     return bestVal, bestSequence
 
+
+
+
+
 for fen_index in range(0, len(test_fens)):
     print("---")
     tt = TT(65536)
     num_of_nodes = 0
     board = chess.Board(test_fens[fen_index])
     PV = []
-    stopTime = time.time() + 10
+    stopTime = time.time() + 10000
     turnTime_start = time.time()
-    for i in range(1, 8):
+    for i in range(1, 10):
         if (time.time() > stopTime):
             break
         bestVal, bestSequence = alphaBeta(board, i, i, -99999, 99999, [], PV, stopTime)
@@ -165,12 +186,16 @@ for fen_index in range(0, len(test_fens)):
         PV_string = ""
         for j in range(len(PV)):
             PV_string += chess.Move.uci(PV[j]) + " "
-        print("info depth", i, "score cp", int(bestVal * 1000), "nodes", num_of_nodes, "nps", num_of_nodes/(time.time() - turnTime_start), "pv", PV_string)
+        print("info depth", i, "score cp", int(bestVal * 1000), "nodes", num_of_nodes, "nps", num_of_nodes/(time.time() - turnTime_start + 0.01), "pv", PV_string)
         #tt.contentOfTT()
         #tt.infoTT()
     end = time.time()
     print("time taken", end - turnTime_start)
     print("bestmove", PV[0])
+
+
+
+
 
 
 
@@ -228,7 +253,11 @@ while True:
         stopTime = turnTime_start + turnTime
         num_of_nodes = 0
         PV = []
-        for i in range(1, 10):
+        for i in range(1, 3):
+
+            #!!!!!
+            tt = TT(2 ** 16)
+
             #time check
             if (time.time() > stopTime):
                 break
