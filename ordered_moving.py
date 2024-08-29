@@ -1,6 +1,6 @@
 import chess
 import chess.polyglot
-           # q    n    b    r    q    k
+           # p    n    b    r    q    k
 mvv_lva = [[105, 205, 305, 405, 505, 605],  #k
             [104, 204, 304, 404, 504, 604], #q
             [103, 203, 303, 403, 503, 603], #r
@@ -23,25 +23,34 @@ piece_value = {
     'K': 20000,
 }
 def move_ordering(legals, board, tt):
-
     moves_scored = {}
 
     for move in legals:
+        # board.push(move)
+        # zobrist_key = chess.polyglot.zobrist_hash(board)
+        # TEntry, isSameZobrist = tt.readEntry(zobrist_key)
+        # board.pop()
+        # if isSameZobrist:
+        #     moves_scored[move] = 0#TEntry.evaluation
+        #     continue  # do not remove move from legals
+
         if board.is_capture(move) and not board.is_en_passant(move):
             moves_scored[move] = capture_move_score(board, move)
-
+        elif move.promotion != None:
+            moves_scored[move] = 80000 + move.promotion
         else:
             moves_scored[move] = 0
+
 
     # try to get best move from tt if its there give it a big value
     zobrist_key = chess.polyglot.zobrist_hash(board)
     TEntry, isSameZobrist = tt.readEntry(zobrist_key)
 
     # forcing best move from tt to be first (if tt contains info about the move its surely deeper search)
-    #if isSameZobrist and TEntry.best_move != None:
-    #     if TEntry.best_move in moves_scored:
-    #         #print("forcing move", TEntry.best_move, "as a move to try first with depth of", TEntry.depth)
-    #         moves_scored[TEntry.best_move] = 99999
+    if isSameZobrist and TEntry.best_move != None:
+         if TEntry.best_move in moves_scored:
+             #print("forcing move", TEntry.best_move, "as a move to try first with depth of", TEntry.depth)
+             moves_scored[TEntry.best_move] = 99999
     return moves_scored
 
 
