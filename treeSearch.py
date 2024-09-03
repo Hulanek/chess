@@ -2,12 +2,15 @@ import random
 import chess
 import ordered_moving
 import Functions
+from stockfish import Stockfish
 import time
 from chess import polyglot
 from transpositionTable import TT
 import evaluation
 
-test_fens = ["r2q1rk1/ppp2ppp/2n1bn2/2b1p3/3pP3/3P1NPP/PPP1NPB1/R1BQ1RK1 w - - 0 9",#video fen
+
+test_fens = ["r1bqkb1r/ppp1pppp/2n5/3n4/2QP4/4PN2/PP3PPP/RNB1KB1R b KQkq - 0 6",
+            "r2q1rk1/ppp2ppp/2n1bn2/2b1p3/3pP3/3P1NPP/1PP1NPB1/R1BQ1RK1 w - - 0 9",#video fen
             #"1k6/8/5ppp/8/5PPP/8/8/1K6 w HAha - 0 1",   # 3v3 pawns
             #"1k6/8/8/8/8/8/6Q1/3K4 w - - 0 1", # queen mat
             #"8/p4p2/1ppk2p1/4p2p/8/2P1PPP1/P1P4P/3K4 w - - 0 1", # pawns fight
@@ -26,7 +29,8 @@ LOWERBOUND = 2
 EXACT = 3
 num_of_nodes = 0
 sum_of_nodes = 0
-tt = TT(2 ** 4) # 2^16 = 65536
+tt = TT(2 ** 16) # 2^16 = 65536
+
 
 def randomPlay(board):
     legals = list(board.legal_moves)
@@ -35,6 +39,7 @@ def randomPlay(board):
 def eval(board):
     bitboards = Functions.boardToBitboard(board)
     bitboards = bitboards.reshape(1, 13, 8, 8)
+    #return fen_eval_stockfish(board.fen())
     #return sess.run(None, {'input': bitboards})[0][0][0]
     return evaluation.staticEvaluation(board)
 
@@ -53,7 +58,7 @@ def quiescenceSearch(board, alpha, beta, move_sequence):
 
     i = 0
     while i < len(captureLegals):
-        if not board.is_capture(captureLegals[i]): # en passant chybi
+        if not board.is_capture(captureLegals[i]) and not board.is_en_passant(captureLegals[i]): # en passant chybi
             captureLegals.remove(captureLegals[i])
         else:
             i += 1
@@ -61,7 +66,7 @@ def quiescenceSearch(board, alpha, beta, move_sequence):
     if(len(captureLegals) == 0):
         return evaluation, move_sequence
 
-    scoredCaptures = ordered_moving.move_ordering(captureLegals, board, tt)
+    scoredCaptures = ordered_moving.move_ordering(captureLegals, board, tt, PV)
     captureLegals = sorted(scoredCaptures.items(), key=lambda item: item[1], reverse=True)
     newSequence = move_sequence
 
@@ -69,8 +74,8 @@ def quiescenceSearch(board, alpha, beta, move_sequence):
 
         # time control
         if (num_of_nodes % TIME_NUM_OF_NODES == 0):
-            if (time.time() > stopTime):
-                return alpha, move_sequence
+           if (time.time() > stopTime):
+               return alpha, move_sequence
 
         board.push(move[0])
         newEval, newSequence = quiescenceSearch(board, -beta, -alpha, move_sequence + [move[0]])
@@ -139,14 +144,14 @@ def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stop
     #             return beta, newSequence
 
 
-    bestVal = -99999
+    bestVal = -1000000
     bestSequence = move_sequence
 
     # generating moves
     legals = list(board.legal_moves)
 
     # scoring moves
-    ordered_moves = ordered_moving.move_ordering(legals, board, tt)
+    ordered_moves = ordered_moving.move_ordering(legals, board, tt, PV)
 
     # sorting moves by score
     # better would be to take the best value in each iteration (you dont have to sort moves that you wont use)
@@ -188,6 +193,7 @@ def alphaBeta(board, depth, original_depth, alpha, beta, move_sequence, PV, stop
 
 
 '''
+
 for fen_index in range(0, len(test_fens)):
     print("---")
     tt = TT(2 ** 16)
@@ -211,6 +217,9 @@ for fen_index in range(0, len(test_fens)):
     print("time taken", end - turnTime_start)
     print("bestmove", PV[0])
 '''
+
+
+
 
 
 
@@ -261,7 +270,7 @@ while True:
 
     elif args[0] == "go":
 
-        tt = TT(2 ** 16)
+        #tt = TT(2 ** 16)
         # chybi inkrementovaci cas
 
         if len(args) == 7:
@@ -286,17 +295,18 @@ while True:
         #print(time.time(), stopTime)
         num_of_nodes = 0
         PV = []
-        for i in range(1, 10):
+        for i in range(1, 20):
             #time check
+
+
+            bestVal, bestSequence = alphaBeta(board, i, i, -99999, 99999, [], PV, stopTime, True)
             if (time.time() > stopTime):
                 break
-            else:
-                bestVal, bestSequence = alphaBeta(board, i, i, -99999, 99999, [], PV, stopTime, True)
-                PV = bestSequence
-                PV_string = ""
-                for j in range(len(PV)):
-                    PV_string += chess.Move.uci(PV[j]) + " "
+            PV = bestSequence
+            PV_string = ""
+            for j in range(len(PV)):
+                PV_string += chess.Move.uci(PV[j]) + " "
             print("info depth", i, "score cp", int(bestVal), "nodes", num_of_nodes, "nps", int(num_of_nodes/(time.time() - turnTime_start + 1)),"pv", PV_string, flush=True)
 
             #print("depth time taken", time.time() - turnTime_start)
-        print("bestmove", bestSequence[0])
+        print("bestmove", PV[0])

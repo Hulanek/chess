@@ -1,6 +1,6 @@
 import chess
 import chess.polyglot
-           # p    n    b    r    q    k
+        # A  k    q    r    b    n    p
 mvv_lva = [[105, 205, 305, 405, 505, 605],  #k
             [104, 204, 304, 404, 504, 604], #q
             [103, 203, 303, 403, 503, 603], #r
@@ -22,7 +22,7 @@ piece_value = {
     'Q': 900,
     'K': 20000,
 }
-def move_ordering(legals, board, tt):
+def move_ordering(legals, board, tt, PV):
     moves_scored = {}
 
     for move in legals:
@@ -51,6 +51,7 @@ def move_ordering(legals, board, tt):
          if TEntry.best_move in moves_scored:
              #print("forcing move", TEntry.best_move, "as a move to try first with depth of", TEntry.depth)
              moves_scored[TEntry.best_move] = 99999
+
     return moves_scored
 
 

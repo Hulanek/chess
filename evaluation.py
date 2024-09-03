@@ -163,7 +163,6 @@ pst = [
     ]
   ]
 
-
 materialWeightsOpening = {
     'p': -92,
     'n': -307,
@@ -223,21 +222,19 @@ def staticEvaluation(board):
         if piece != None:
             # getting piece on each tile
             pieceSymbol = board.piece_at(i).symbol()
-
             # material score
             scoreOpening += materialWeightsOpening[pieceSymbol]
             scoreEndgame += materialWeightsEndgame[pieceSymbol]
-
             # positional score
             if piece.color == chess.WHITE:
-                scoreOpening += pst[OPENING][piece.piece_type - 1][i]
-                scoreEndgame += pst[ENDGAME][piece.piece_type - 1][i]
-            else:
-                # calculating mirror tile for black
                 mirrorTile = 8 * (7 - (i // 8)) + (i % 8)
-                scoreOpening -= pst[OPENING][piece.piece_type - 1][mirrorTile]
-                scoreEndgame -= pst[ENDGAME][piece.piece_type - 1][mirrorTile]
 
+                scoreOpening += pst[OPENING][piece.piece_type - 1][mirrorTile]
+                scoreEndgame += pst[ENDGAME][piece.piece_type - 1][mirrorTile]
+            else:
+
+                scoreOpening -= pst[OPENING][piece.piece_type - 1][i]
+                scoreEndgame -= pst[ENDGAME][piece.piece_type - 1][i]
     if (phase == MIDGAME):
         score = (scoreOpening * phaseScore + scoreEndgame * (
                     openingPhaseScore - phaseScore)) / openingPhaseScore
@@ -247,4 +244,3 @@ def staticEvaluation(board):
         score = scoreEndgame
     score = (score * (100 - board.halfmove_clock) / 100)  # << 0
     return score
-
